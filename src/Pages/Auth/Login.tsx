@@ -9,10 +9,11 @@ import {
   Group,
   Button,
 } from "@mantine/core";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../../supabase/client";
 import { Notification } from "@mantine/core";
 import { IconCheck, IconX } from "@tabler/icons-react";
+import { useNavigate } from "react-router-dom";
 
 export function Login() {
   const [islogin, setIsLogin] = useState(true);
@@ -26,6 +27,19 @@ export function Login() {
   const [incorrect, setIncorrect] = useState(false);
   const [error, setError] = useState("");
 
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/"); // Redirige al home si ya está autenticado
+      }
+    };
+    checkAuth();
+  }, [navigate, correct]);
   async function signUpNewUser(email: string, password: string) {
     const { data, error } = await supabase.auth.signUp({
       email: email,
