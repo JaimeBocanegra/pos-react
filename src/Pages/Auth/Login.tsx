@@ -208,7 +208,7 @@ export function Login() {
                 href="#"
                 size="sm"
               >
-                ¿Olvidaste tu contraseña?
+                ¿Olvidaste tu contraseñaaaaaaaaaaaaaaaaa?
               </Anchor>
             </Group>
           ) : null}
