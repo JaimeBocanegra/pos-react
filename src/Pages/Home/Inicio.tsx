@@ -45,6 +45,9 @@ export function Inicio() {
       link: "/configuraciones",
     },
   ];
+  const handleLinkClick = () => {
+    setOpened(false); // Cierra el menú
+  };
   const collectionLinks = collections.map((item, index) => (
     <NavLink
       key={index}
@@ -54,13 +57,22 @@ export function Inicio() {
       to={item.link}
       variant="filled"
       color="indigo"
-      active={location.pathname === item.link}
+      active={location.pathname.startsWith(item.link)}
+      onClick={handleLinkClick}
     />
   ));
   return (
     <AppShell
       navbarOffsetBreakpoint="sm"
       asideOffsetBreakpoint="sm"
+      styles={(theme) => ({
+        main: {
+          backgroundColor:
+            theme.colorScheme === "dark"
+              ? theme.colors.dark[8]
+              : theme.colors.gray[1],
+        },
+      })}
       navbar={
         <Navbar
           p="md"
@@ -82,7 +94,9 @@ export function Inicio() {
                 mr="xl"
               />
             </MediaQuery>
-            <h1>POS React</h1>
+            <MediaQuery smallerThan="sm" styles={{ fontSize: "1rem" }}>
+              <h1>POS React</h1>
+            </MediaQuery>
             <Group>
               <Avatar
                 src="ruta_a_la_foto_de_usuario"
@@ -90,14 +104,21 @@ export function Inicio() {
                 radius="xl"
                 size="md"
               />
-              <Button
-                variant="filled"
-                color="red"
-                leftIcon={<IconLogout />}
-                onClick={handleLogout}
+              <MediaQuery
+                smallerThan="sm"
+                styles={{ fontSize: "0.8rem", padding: "0.5rem" }}
               >
-                Cerrar Sesión
-              </Button>
+                <Button
+                  variant="filled"
+                  color="red"
+                  leftIcon={<IconLogout />}
+                  onClick={handleLogout}
+                >
+                  <MediaQuery smallerThan="sm" styles={{ display: "none" }}>
+                    <span>Cerrar Sesión</span>
+                  </MediaQuery>
+                </Button>
+              </MediaQuery>
             </Group>
           </Group>
         </Header>
