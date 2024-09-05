@@ -163,7 +163,7 @@ export function Login() {
           fontWeight: 900,
         })}
       >
-        POST REACT
+        POS REACT
       </Title>
       <Text color="dimmed" size="sm" align="center" mt={5}>
         {islogin ? "¿No tienes una cuenta?" : "¿Ya tienes una cuenta?"}
