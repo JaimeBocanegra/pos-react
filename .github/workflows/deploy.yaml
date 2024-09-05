@@ -3,7 +3,7 @@ name: Deploy React App
 on:
   push:
     branches:
-      - master # Cambia "main" por la rama que prefieras
+      - master
 
 jobs:
   build:
@@ -41,13 +41,13 @@ jobs:
           docker build -t ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS .
           echo "Docker image built successfully with tag ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS"
 
-      - name: List Docker images
-        run: docker images
-
       - name: Push Docker image
         run: |
           COMMITS=${{ env.COMMITS }}
           docker push ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS
+
+    outputs:
+      commit_count: ${{ steps.get_commit_count.outputs.COMMITS }}
 
   deploy:
     runs-on: ubuntu-latest
@@ -61,7 +61,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            COMMITS=$(git rev-list --count HEAD)
+            COMMITS="${{ needs.build.outputs.commit_count }}"
             echo "Logging in to Docker registry..."
             sudo docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} -p ${{ secrets.DOCKER_REGISTRY_PASSWORD }} || exit 1
             echo "Pulling Docker image..."
