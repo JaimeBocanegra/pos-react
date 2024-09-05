@@ -28,10 +28,10 @@ jobs:
         run: echo "${{ secrets.DOCKER_REGISTRY_PASSWORD }}" | docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u "${{ secrets.DOCKER_REGISTRY_USERNAME }}" --password-stdin
 
       - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/mi-aplicacion-react:latest .
+        run: docker build -t ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:latest .
 
       - name: Push Docker image
-        run: docker push ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/mi-aplicacion-react:latest
+        run: docker push ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:latest
 
   deploy:
     runs-on: ubuntu-latest
@@ -45,8 +45,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} -p ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
-            docker pull ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/mi-aplicacion-react:latest
-            docker stop mi-aplicacion-react || true
-            docker rm mi-aplicacion-react || true
-            docker run -d --name mi-aplicacion-react -p 3000:80 ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/mi-aplicacion-react:latest
+            sudo docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} -p ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+            sudo docker pull ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:latest
+            sudo docker stop pos-react || true
+            sudo docker rm pos-react || true
+            sudo docker run -d --name pos-react -p 3000:80 ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:latest
