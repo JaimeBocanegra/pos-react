@@ -28,10 +28,15 @@ jobs:
         run: echo "${{ secrets.DOCKER_REGISTRY_PASSWORD }}" | docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u "${{ secrets.DOCKER_REGISTRY_USERNAME }}" --password-stdin
 
       - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$(date +%Y%m%d%H%M%S) .
+        run: |
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          docker build -t ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$TIMESTAMP .
+          docker images
 
       - name: Push Docker image
-        run: docker push ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$(date +%Y%m%d%H%M%S)
+        run: |
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          docker push ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$TIMESTAMP
 
   deploy:
     runs-on: ubuntu-latest
@@ -45,12 +50,13 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            TIMESTAMP=$(date +%Y%m%d%H%M%S)
             echo "Logging in to Docker registry..."
             sudo docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} -p ${{ secrets.DOCKER_REGISTRY_PASSWORD }} || exit 1
             echo "Pulling Docker image..."
-            sudo docker pull ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$(date +%Y%m%d%H%M%S) || exit 1
+            sudo docker pull ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$TIMESTAMP || exit 1
             echo "Stopping existing container..."
             sudo docker stop pos-react || true
             sudo docker rm pos-react || true
             echo "Running new container..."
-            sudo docker run -d --name pos-react -p 3000:80 ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$(date +%Y%m%d%H%M%S) || exit 1
+            sudo docker run -d --name pos-react -p 3000:80 ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$TIMESTAMP || exit 1
