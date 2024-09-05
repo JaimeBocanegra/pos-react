@@ -61,7 +61,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            COMMITS=$(git rev-list --count HEAD)
+            COMMITS=${{ env.COMMITS }}
             echo "Logging in to Docker registry..."
             sudo docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} -p ${{ secrets.DOCKER_REGISTRY_PASSWORD }} || exit 1
             echo "Pulling Docker image..."
