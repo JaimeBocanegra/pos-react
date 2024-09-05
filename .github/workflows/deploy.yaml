@@ -50,27 +50,27 @@ jobs:
       commit_count: ${{ steps.get_commit_count.outputs.COMMITS }}
 
   deploy:
-  runs-on: ubuntu-latest
-  needs: build
+    runs-on: ubuntu-latest
+    needs: build
 
-  steps:
-    - name: Debug COMMITS value
-      run: echo "COMMITS value: ${{ needs.build.outputs.commit_count }}"
+    steps:
+      - name: Debug COMMITS value
+        run: echo "COMMITS value: ${{ needs.build.outputs.commit_count }}"
 
-    - name: Deploy to Server
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          COMMITS="${{ needs.build.outputs.commit_count }}"
-          echo "Logging in to Docker registry..."
-          sudo docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} -p ${{ secrets.DOCKER_REGISTRY_PASSWORD }} || exit 1
-          echo "Pulling Docker image..."
-          sudo docker pull ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS || exit 1
-          echo "Stopping existing container..."
-          sudo docker stop pos-react || true
-          sudo docker rm pos-react || true
-          echo "Running new container..."
-          sudo docker run -d --name pos-react -p 3000:80 ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS || exit 1
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            COMMITS="${{ needs.build.outputs.commit_count }}"
+            echo "Logging in to Docker registry..."
+            sudo docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} -p ${{ secrets.DOCKER_REGISTRY_PASSWORD }} || exit 1
+            echo "Pulling Docker image..."
+            sudo docker pull ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS || exit 1
+            echo "Stopping existing container..."
+            sudo docker stop pos-react || true
+            sudo docker rm pos-react || true
+            echo "Running new container..."
+            sudo docker run -d --name pos-react -p 3000:80 ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS || exit 1
