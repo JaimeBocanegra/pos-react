@@ -3,7 +3,7 @@ name: Deploy React App
 on:
   push:
     branches:
-      - master
+      - main # Cambia "main" por la rama que prefieras
 
 jobs:
   build:
@@ -24,41 +24,20 @@ jobs:
       - name: Build project
         run: npm run build
 
-      - name: Get commit count
-        id: get_commit_count
-        run: |
-          COMMITS=$(git rev-list --count HEAD)
-          echo "COMMITS=$COMMITS" >> $GITHUB_ENV
-        # Aquí establecemos el output en este nivel
-        echo "commit_count=$COMMITS" >> $GITHUB_ENV
-
       - name: Log in to Docker Registry
         run: echo "${{ secrets.DOCKER_REGISTRY_PASSWORD }}" | docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u "${{ secrets.DOCKER_REGISTRY_USERNAME }}" --password-stdin
 
       - name: Build Docker image
-        run: |
-          COMMITS=${{ env.COMMITS }}
-          echo "Building Docker image with tag ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS"
-          docker build -t ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS .
-          echo "Docker image built successfully with tag ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS"
+        run: docker build -t ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/mi-aplicacion-react:latest .
 
       - name: Push Docker image
-        run: |
-          COMMITS=${{ env.COMMITS }}
-          docker push ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS
-
-    # Ahora especificamos la salida de este job en el nivel correcto
-    outputs:
-      commit_count: ${{ env.COMMITS }}
+        run: docker push ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/mi-aplicacion-react:latest
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
 
     steps:
-      - name: Debug COMMITS value
-        run: echo "COMMITS value: ${{ needs.build.outputs.commit_count }}"
-
       - name: Deploy to Server
         uses: appleboy/ssh-action@master
         with:
@@ -66,13 +45,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            COMMITS="${{ needs.build.outputs.commit_count }}"
-            echo "Logging in to Docker registry..."
-            sudo docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} -p ${{ secrets.DOCKER_REGISTRY_PASSWORD }} || exit 1
-            echo "Pulling Docker image..."
-            sudo docker pull ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS || exit 1
-            echo "Stopping existing container..."
-            sudo docker stop pos-react || true
-            sudo docker rm pos-react || true
-            echo "Running new container..."
-            sudo docker run -d --name pos-react -p 3000:80 ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS || exit 1
+            docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} -p ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+            docker pull ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/mi-aplicacion-react:latest
+            docker stop mi-aplicacion-react || true
+            docker rm mi-aplicacion-react || true
+            docker run -d --name mi-aplicacion-react -p 3000:80 ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/mi-aplicacion-react:latest
