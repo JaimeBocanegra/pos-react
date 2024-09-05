@@ -24,19 +24,30 @@ jobs:
       - name: Build project
         run: npm run build
 
+      - name: Get commit count
+        id: get_commit_count
+        run: |
+          COMMITS=$(git rev-list --count HEAD)
+          echo "COMMITS=$COMMITS" >> $GITHUB_ENV
+
       - name: Log in to Docker Registry
         run: echo "${{ secrets.DOCKER_REGISTRY_PASSWORD }}" | docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u "${{ secrets.DOCKER_REGISTRY_USERNAME }}" --password-stdin
 
       - name: Build Docker image
+        id: build
         run: |
-          TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          docker build -t ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$TIMESTAMP .
-          docker images
+          COMMITS=${{ env.COMMITS }}
+          echo "Building Docker image with tag ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS"
+          docker build -t ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS .
+          echo "Docker image built successfully with tag ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS"
+
+      - name: List Docker images
+        run: docker images
 
       - name: Push Docker image
         run: |
-          TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          docker push ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$TIMESTAMP
+          COMMITS=${{ env.COMMITS }}
+          docker push ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS
 
   deploy:
     runs-on: ubuntu-latest
@@ -50,13 +61,13 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            TIMESTAMP=$(date +%Y%m%d%H%M%S)
+            COMMITS=$(git rev-list --count HEAD)
             echo "Logging in to Docker registry..."
             sudo docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} -p ${{ secrets.DOCKER_REGISTRY_PASSWORD }} || exit 1
             echo "Pulling Docker image..."
-            sudo docker pull ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$TIMESTAMP || exit 1
+            sudo docker pull ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS || exit 1
             echo "Stopping existing container..."
             sudo docker stop pos-react || true
             sudo docker rm pos-react || true
             echo "Running new container..."
-            sudo docker run -d --name pos-react -p 3000:80 ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$TIMESTAMP || exit 1
+            sudo docker run -d --name pos-react -p 3000:80 ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS || exit 1
