@@ -29,6 +29,8 @@ jobs:
         run: |
           COMMITS=$(git rev-list --count HEAD)
           echo "COMMITS=$COMMITS" >> $GITHUB_ENV
+        outputs:
+          commit_count: ${{ steps.get_commit_count.outputs.COMMITS }}
 
       - name: Log in to Docker Registry
         run: echo "${{ secrets.DOCKER_REGISTRY_PASSWORD }}" | docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u "${{ secrets.DOCKER_REGISTRY_USERNAME }}" --password-stdin
@@ -45,9 +47,6 @@ jobs:
         run: |
           COMMITS=${{ env.COMMITS }}
           docker push ${{ secrets.DOCKER_REGISTRY_URL }}/datajaime/pos-react:$COMMITS
-
-    outputs:
-      commit_count: ${{ steps.get_commit_count.outputs.COMMITS }}
 
   deploy:
     runs-on: ubuntu-latest
