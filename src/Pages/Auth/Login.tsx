@@ -163,7 +163,7 @@ export function Login() {
           fontWeight: 900,
         })}
       >
-        POS REACT
+        POST REACT
       </Title>
       <Text color="dimmed" size="sm" align="center" mt={5}>
         {islogin ? "¿No tienes una cuenta?" : "¿Ya tienes una cuenta?"}
@@ -208,7 +208,7 @@ export function Login() {
                 href="#"
                 size="sm"
               >
-                ¿Olvidaste tu contraseñaaaaaaaaaaaaaaaaa?
+                ¿Olvidaste tu contraseña?
               </Anchor>
             </Group>
           ) : null}
