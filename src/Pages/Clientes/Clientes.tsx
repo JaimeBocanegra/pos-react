@@ -24,6 +24,8 @@ export function Clientes() {
   const onGridReady = (params: any) => {
     setGridApi(params.api);
     setGridColumnApi(params.columnApi);
+    console.log(gridApi);
+    console.log(gridColumnApi);
   };
   const handleEditCliente = (cliente: any) => {
     navigate("/clientes/" + cliente.idCliente + "/editar");
