@@ -61,12 +61,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-<<<<<<< HEAD
             COMMITS="${{ needs.build.outputs.commit_count }}"
-=======
-            COMMITS=${{ env.COMMITS }}
             echo COMMITS
->>>>>>> a4b85a9b5fcf2021a6502676ea89c451c98101f9
             echo "Logging in to Docker registry..."
             sudo docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} -p ${{ secrets.DOCKER_REGISTRY_PASSWORD }} || exit 1
             echo "Pulling Docker image..."
