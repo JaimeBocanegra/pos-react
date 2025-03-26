@@ -1,11 +1,11 @@
 import { ActionIcon, Button, Flex } from "@mantine/core";
 import { IconPlus, IconEdit, IconTrash, IconEye } from "@tabler/icons-react";
 import DataTable from "../../components/DataTable";
-import { useEffect, useState } from "react";
-import { ITextFilterParams } from "ag-grid-community";
+import { useEffect, useState, useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { obtenerClientes, eliminarCliente } from "../services/ClienteService";
+import {CustomFilter} from '../../components/CustomFilter';
 
 export function Clientes() {
   const [gridApi, setGridApi] = useState<any | null>(null);
@@ -18,20 +18,21 @@ export function Clientes() {
     const data = await obtenerClientes();
     setClientes(data);
   };
+
   useEffect(() => {
     obtenerClietes();
   }, [location]);
+
   const onGridReady = (params: any) => {
     setGridApi(params.api);
     setGridColumnApi(params.columnApi);
-    console.log(gridApi);
-    console.log(gridColumnApi);
   };
+
   const handleEditCliente = (cliente: any) => {
     navigate("/clientes/" + cliente.idCliente + "/editar");
   };
+
   const handleDeleteCliente = async (cliente: any) => {
-    console.log("delete", cliente);
     Swal.fire({
       title: "¿Estas seguro de eliminar este cliente " + cliente.nombre + " ?",
       icon: "warning",
@@ -48,30 +49,32 @@ export function Clientes() {
     });
   };
 
-  const rowData = clientes.map((cliente: any) => {
-    return {
-      idCliente: cliente.IdCliente,
-      nombre: cliente.Nombre,
-    };
-  });
+  const rowData = useMemo(() => clientes.map((cliente: any) => ({
+    idCliente: cliente.IdCliente,
+    nombre: cliente.Nombre,
+  })), [clientes]);
 
-  const columnDefs = [
+  const uniqueNames = useMemo(() => Array.from(new Set(rowData.map(row => row.nombre))), [rowData]);
+
+  const columnDefs =  [
     { headerName: "ID", field: "idCliente", hide: true },
     {
       headerName: "Nombre",
       field: "nombre",
       flex: 1,
       minWidth: 100,
+      filter: CustomFilter,
       filterParams: {
-        buttons: ["apply", "reset"],
-      } as ITextFilterParams,
+        options: uniqueNames,
+        
+      },
       cellStyle: {
-        lineHeight: "1.2", // Ajustar la altura de la línea
-        alignItems: "flex-center", // Alinear el contenido hacia abajo
-        display: "flex", // Ajustar la altura para que se ajuste al contenido
+        lineHeight: "1.2",
+        alignItems: "flex-center",
+        display: "flex",
       },
       wrapText: true,
-      autoHeight: true, // Ajustar la altura automáticamente
+      autoHeight: true,
     },
     {
       headerName: "Acciones",
@@ -111,6 +114,7 @@ export function Clientes() {
       headerClass: "centered-header",
     },
   ];
+
   return (
     <Flex
       w="100%"

@@ -8,24 +8,24 @@ import {
   Container,
   Group,
   Button,
+  Notification,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { supabase } from "../../supabase/client";
-import { Notification } from "@mantine/core";
 import { IconCheck, IconX } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 
 export function Login() {
   const [islogin, setIsLogin] = useState(true);
-  const [correo, setCorreo] = useState("");
+  const [usuario, setUsuario] = useState(""); // Campo compartido para correo o teléfono
   const [contrasena, setContrasena] = useState("");
   const [confirmacontrasena, setConfirmacontrasena] = useState("");
   const [erroremail, setErroremail] = useState("");
   const [errorpassword, setErrorpassword] = useState("");
   const [errorconfirmapassword, setErrorconfirmapassword] = useState("");
   const [correct, setCorrect] = useState(false);
-  const [incorrect, setIncorrect] = useState(false);
-  const [error, setError] = useState("");
+  const [incorrect, setIncorrect] = useState(false); // Para controlar si hubo error
+  const [error, setError] = useState(""); // Para mostrar el mensaje de error
 
   const navigate = useNavigate();
 
@@ -40,60 +40,86 @@ export function Login() {
     };
     checkAuth();
   }, [navigate, correct]);
-  async function signUpNewUser(email: string, password: string) {
-    const { data, error } = await supabase.auth.signUp({
-      email: email,
-      password: password,
-    });
 
-    if (error) {
-      console.log(error);
-      setIncorrect(true);
-      setError(error.message);
-    } else {
-      console.log(data);
-      setCorrect(true);
-      setTimeout(() => {
-        resetForm();
-      }, 3000);
-    }
-  }
-  const resetForm = () => {
-    setIsLogin(true);
-    setCorrect(false);
-    setIncorrect(false);
-    setError("");
-    setErroremail("");
-    setErrorpassword("");
-    setErrorconfirmapassword("");
-    setCorreo("");
-    setContrasena("");
-    setConfirmacontrasena("");
-  };
-  async function signInWithEmail(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
-    });
-
-    if (error) {
-      console.log(error);
-      setIncorrect(true);
-      setError(error.message);
-    } else {
-      console.log(data);
-      setCorrect(true);
-    }
-  }
-  const validateEmail = (value: string) => {
-    // Expresión regular básica para validar correo electrónico
+  // Validar si es un correo electrónico
+  const isEmail = (value: string) => {
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(value)) {
-      setErroremail("Correo electrónico no válido");
-    } else {
-      setErroremail("");
-    }
+    return emailPattern.test(value);
   };
+
+  // Validar si es un número de teléfono
+  const isPhone = (value: string) => {
+    const phonePattern = /^[0-9]{10,14}$/; // Simple validación para 10 a 14 dígitos
+    return phonePattern.test(value);
+  };
+
+  async function signUpNewUser() {
+    let signUpData;
+    if (isEmail(usuario)) {
+      signUpData = await supabase.auth.signUp({
+        email: usuario,
+        password: contrasena,
+      });
+    } else if (isPhone(usuario)) {
+      signUpData = await supabase.auth.signUp({
+        phone: usuario,
+        password: contrasena,
+      });
+    }
+
+    if (signUpData) {
+      const { data, error } = signUpData;
+
+      if (error) {
+        console.log(error);
+        setIncorrect(true);
+        setError(error.message); // Guardar el mensaje de error para mostrar
+        setTimeout(() => {
+         setIncorrect(false);
+         setError(""); 
+        }, 4000);
+      } else if (data) {
+        console.log(data);
+        setCorrect(true);
+        setTimeout(() => {
+          resetForm();
+        }, 3000);
+      }
+    }
+  }
+
+  async function signInWithEmailOrPhone() {
+    let signInData;
+    if (isEmail(usuario)) {
+      signInData = await supabase.auth.signInWithPassword({
+        email: usuario,
+        password: contrasena,
+      });
+    } else if (isPhone(usuario)) {
+      signInData = await supabase.auth.signInWithPassword({
+        phone: usuario,
+        password: contrasena,
+      });
+    }
+  
+    if (signInData) {
+      const { data, error } = signInData;
+  
+      if (error) {
+        console.log(error);
+        setIncorrect(true);
+        setError("Usuario o contraseña incorrectos"); // Mostrar error claro en caso de login fallido
+        setTimeout(() => {
+          setIncorrect(false);
+          setError("");
+        }, 4000);
+      } else if (data) {
+        console.log(data);
+        setCorrect(true);
+      }
+    }
+  }
+
   const validatePassword = (password: string): string => {
     const minLength = 8;
     const hasUpperCase = /[A-Z]/.test(password);
@@ -102,7 +128,7 @@ export function Login() {
     const hasSpecialChars = /[!@#$%^&*(),.?":{}|<>]/.test(password);
 
     if (password.length < minLength) {
-      return `La contraseña debe tener al menos ${minLength} caracteres.`;
+      return "La contraseña debe tener al menos " + minLength + " caracteres.";
     }
 
     if (!hasUpperCase) {
@@ -124,38 +150,72 @@ export function Login() {
     return "";
   };
 
+  const resetForm = () => {
+    setIsLogin(true);
+    setCorrect(false);
+    setIncorrect(false);
+    setError("");
+    setErroremail("");
+    setErrorpassword("");
+    setErrorconfirmapassword("");
+    setUsuario("");
+    setContrasena("");
+    setConfirmacontrasena("");
+  };
+
   const handleSubmit = (e: any) => {
     e.preventDefault();
-    validateEmail(correo);
-    setErrorpassword(validatePassword(contrasena));
-    if (erroremail || errorpassword) {
+  
+    // Limpiar los errores antes de comenzar la validación
+    setErroremail("");
+    setErrorpassword("");
+    setErrorconfirmapassword("");
+    setError(""); // Limpiar error general
+  
+    // Validación de correo o teléfono
+    if (!isEmail(usuario) && !isPhone(usuario)) {
+      setErroremail("Debe ingresar un correo electrónico válido o un número de teléfono.");
       setTimeout(() => {
         setErroremail("");
-        setErrorpassword("");
-        setErrorconfirmapassword("");
       }, 4000);
-      return;
+      return; // Evitar seguir si la validación de usuario falla
     }
+  
+    // Validación de contraseña en caso de registro
     if (!islogin) {
+      const passwordError = validatePassword(contrasena);
+      if (passwordError) {
+        setErrorpassword(passwordError);
+        return; // Detener si la contraseña no cumple
+      }
+  
+      // Comprobar si las contraseñas coinciden
       if (contrasena !== confirmacontrasena) {
-        setErrorconfirmapassword("Las contrasenas no coinciden");
-        setTimeout(() => {
-          setErroremail("");
-          setErrorpassword("");
-          setErrorconfirmapassword("");
-        }, 4000);
-        return;
+        setErrorconfirmapassword("Las contraseñas no coinciden.");
+        return; // Detener si las contraseñas no coinciden
       }
     }
-    islogin
-      ? signInWithEmail(correo, contrasena)
-      : signUpNewUser(correo, contrasena);
+  
+    // Proceder con login o registro si no hay errores
+    islogin ? signInWithEmailOrPhone() : signUpNewUser();
   };
+
   function toggleLogin() {
     setIsLogin(!islogin);
   }
+
   return (
     <Container size={420} my={40}>
+      {incorrect && (
+        <Notification
+          icon={<IconX size="1.1rem" />}
+          color="red"
+          title="Error"
+          onClose={() => setIncorrect(false)} // Permitir cerrar la notificación
+        >
+          {error}
+        </Notification>
+      )}
       <Title
         align="center"
         sx={(theme) => ({
@@ -168,18 +228,18 @@ export function Login() {
       <Text color="dimmed" size="sm" align="center" mt={5}>
         {islogin ? "¿No tienes una cuenta?" : "¿Ya tienes una cuenta?"}
         <Anchor<"a"> href="#" pl={5} size="sm" onClick={toggleLogin}>
-          {islogin ? "Crear Cuneta" : "Iniciar Sesion"}
+          {islogin ? "Crear Cuenta" : "Iniciar Sesión"}
         </Anchor>
       </Text>
       <form onSubmit={handleSubmit}>
         <Paper withBorder shadow="md" p={30} mt={30} radius="md">
           <TextInput
-            label="Correo"
-            placeholder="you@mail.com"
+            label="Correo o Teléfono"
+            placeholder="Ingresa tu correo o número de teléfono"
             required
-            onChange={(e) => setCorreo(e.target.value)}
+            onChange={(e) => setUsuario(e.target.value)}
             error={erroremail}
-            value={correo}
+            value={usuario}
           />
           <PasswordInput
             label="Contraseña"
@@ -201,42 +261,9 @@ export function Login() {
               value={confirmacontrasena}
             />
           ) : null}
-          {islogin ? (
-            <Group position="apart" mt="md">
-              <Anchor<"a">
-                onClick={(event) => event.preventDefault()}
-                href="#"
-                size="sm"
-              >
-                ¿Olvidaste tu contraseña?
-              </Anchor>
-            </Group>
-          ) : null}
           <Button fullWidth mt="xl" type="submit">
-            {islogin ? "Iniciar Sesion" : "Crear Cuenta"}
+            {islogin ? "Iniciar Sesión" : "Crear Cuenta"}
           </Button>
-          <br />
-          {correct ? (
-            <Notification
-              icon={<IconCheck size="1.1rem" />}
-              color="teal"
-              title={islogin ? "Login Correcto" : "Cuenta Creada Correctamente"}
-              onClose={() => setCorrect(false)}
-            >
-              {islogin ? "Ingresando..." : "Inicia Sesion para Continuar"}
-            </Notification>
-          ) : null}
-
-          {incorrect ? (
-            <Notification
-              icon={<IconX size="1.1rem" />}
-              color="red"
-              title="Error"
-              onClose={() => setIncorrect(false)}
-            >
-              {error}
-            </Notification>
-          ) : null}
         </Paper>
       </form>
     </Container>

@@ -7,7 +7,7 @@ import {
   actualizarCliente,
 } from "../services/ClienteService";
 
-function Editar() {
+export function Editar() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [cliente, setCliente] = useState<any | null>(null);
