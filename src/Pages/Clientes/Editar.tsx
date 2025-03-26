@@ -32,7 +32,7 @@ export function Editar() {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     if (nombre === "") {
-      alert("Por favor ingrese el nombre del cliente no debe ir vacio");
+      alert("Por favor ingrese el nombre del cliente");
       return;
     }
     if (nombre === cliente?.Nombre) {
