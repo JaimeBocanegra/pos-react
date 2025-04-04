@@ -231,16 +231,15 @@ export function Inicio() {
       setLoading(true)
       setError(null)
 
-      const { data, error } = await supabase.from("empresas").select("*").single()
+      const { data, error } = await supabase.from("empresas").select("*").limit(1)
 
       if (error && error.code !== "PGRST116") {
         console.error("Error al cargar datos de empresa:", error)
         setError("Error al cargar datos de la empresa")
       }
 
-      if (data) {
-        console.log("Datos de empresa cargados:", data)
-        setEmpresa(data)
+      if (data && data.length > 0) {
+        setEmpresa(data[0])
       }
     } catch (err) {
       console.error("Error inesperado:", err)
@@ -261,7 +260,6 @@ export function Inicio() {
 
   const handleRegistroEmpresa = async (values: any) => {
     try {
-      console.log("Iniciando registro/actualización de empresa con valores:", values)
 
       // Primero subimos el logo si existe
       let logoUrl = null
@@ -271,7 +269,6 @@ export function Inicio() {
         const fileName = `logo_${Date.now()}.${fileExt}`
         const filePath = `${fileName}`
 
-        console.log(`Subiendo archivo a: empresas/${filePath}`)
 
         // Subir el archivo
         const { error: uploadError, data: uploadData } = await supabase.storage
@@ -285,13 +282,11 @@ export function Inicio() {
           throw new Error(`Error al subir logo: ${uploadError.message}`)
         }
 
-        console.log("Archivo subido exitosamente:", uploadData)
 
         // Obtener URL pública
         const { data } = supabase.storage.from("empresas").getPublicUrl(filePath)
 
         logoUrl = data.publicUrl
-        console.log("URL pública del logo:", logoUrl)
       } else if (empresa?.logo && editMode) {
         // Mantener el logo existente si estamos en modo edición
         logoUrl = empresa.logo
@@ -306,16 +301,14 @@ export function Inicio() {
         logo: logoUrl,
       }
 
-      console.log("Datos a guardar:", empresaData)
 
       let result
-      if (empresa?.id) {
+      if (empresa?.id_empresa) {
         // Si existe, actualizamos
-        console.log(`Actualizando empresa con ID: ${empresa.id}`)
         const { data: updatedData, error: updateError } = await supabase
           .from("empresas")
           .update(empresaData)
-          .eq("id", empresa.id)
+          .eq("id_empresa", empresa.id_empresa)
           .select()
           .single()
 
@@ -323,11 +316,9 @@ export function Inicio() {
           throw new Error(`Error al actualizar empresa: ${updateError.message}`)
         }
 
-        console.log("Empresa actualizada:", updatedData)
         result = updatedData
       } else {
         // Si no existe, insertamos
-        console.log("Insertando nueva empresa")
         const { data: insertedData, error: insertError } = await supabase
           .from("empresas")
           .insert([empresaData])
@@ -338,16 +329,13 @@ export function Inicio() {
           throw new Error(`Error al insertar empresa: ${insertError.message}`)
         }
 
-        console.log("Nueva empresa insertada:", insertedData)
         result = insertedData
       }
 
       // Actualizamos el estado para mostrar los datos en lugar del formulario
       setEmpresa(result)
       setEditMode(false)
-      console.log("Operación completada exitosamente")
     } catch (err) {
-      console.error("Error al registrar/actualizar la empresa:", err)
       throw err
     }
   }
@@ -358,7 +346,7 @@ export function Inicio() {
 
   const collections = [
     { icono: <IconUsers />, label: "Clientes", link: "/clientes" },
-    { icono: <IconTruckDelivery />, label: "Proveedores", link: "/proveedor" },
+    { icono: <IconTruckDelivery />, label: "Proveedores", link: "/proveedores" },
     { icono: <IconPackage />, label: "Productos", link: "/productos" },
     { icono: <IconShoppingBagPlus />, label: "Compras", link: "/compras" },
     { icono: <IconBuildingStore />, label: "Ventas", link: "/ventas" },
