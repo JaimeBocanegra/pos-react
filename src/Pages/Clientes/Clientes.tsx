@@ -1,16 +1,17 @@
-import { ActionIcon, Button, Flex } from "@mantine/core";
-import { IconPlus, IconEdit, IconTrash, IconEye } from "@tabler/icons-react";
+import { ActionIcon, Button, Flex, Paper, Title, Group, Badge, Box, Text, TextInput } from "@mantine/core";
+import { IconPlus, IconEdit, IconTrash, IconEye, IconUsers, IconSearch, IconUserPlus } from "@tabler/icons-react";
 import DataTable from "../../components/DataTable";
 import { useEffect, useState, useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { obtenerClientes, eliminarCliente } from "../services/ClienteService";
-import {CustomFilter} from '../../components/CustomFilter';
+import { CustomFilter } from '../../components/CustomFilter';
 
 export function Clientes() {
   const [gridApi, setGridApi] = useState<any | null>(null);
   const [gridColumnApi, setGridColumnApi] = useState<any | null>(null);
   const [clientes, setClientes] = useState([] as any[]);
+  const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -49,111 +50,182 @@ export function Clientes() {
     });
   };
 
-  const rowData = useMemo(() => clientes.map((cliente: any) => ({
-    idCliente: cliente.IdCliente,
-    nombre: cliente.Nombre,
-  })), [clientes]);
+  // Filter data based on search term
+  const filteredData = useMemo(() => {
+    if (!searchTerm) return clientes.map((cliente: any) => ({
+      idCliente: cliente.IdCliente,
+      nombre: cliente.Nombre,
+    }));
+    
+    return clientes
+      .filter((cliente: any) => 
+        cliente.Nombre.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .map((cliente: any) => ({
+        idCliente: cliente.IdCliente,
+        nombre: cliente.Nombre,
+      }));
+  }, [clientes, searchTerm]);
 
-  const uniqueNames = useMemo(() => Array.from(new Set(rowData.map(row => row.nombre))), [rowData]);
+  const uniqueNames = useMemo(() => Array.from(new Set(filteredData.map(row => row.nombre))), [filteredData]);
 
-  const columnDefs =  [
+  const columnDefs = [
     { headerName: "ID", field: "idCliente", hide: true },
     {
       headerName: "Nombre",
       field: "nombre",
       flex: 1,
-      minWidth: 100,
+      minWidth: 200,
       filter: CustomFilter,
       filterParams: {
         options: uniqueNames,
-        
       },
       cellStyle: {
         lineHeight: "1.2",
-        alignItems: "flex-center",
+        alignItems: "center",
         display: "flex",
       },
+      cellRenderer: (params: any) => (
+        <Group spacing="xs">
+          <Badge color="green" size="xs" variant="filled" />
+          <Text>{params.value}</Text>
+        </Group>
+      ),
       wrapText: true,
       autoHeight: true,
     },
     {
       headerName: "Acciones",
       field: "actions",
-      minWidth: 50,
+      minWidth: 150,
       cellRenderer: (params: any) => (
-        <Flex
-          w="100%"
-          justify="center"
-          align="center"
-          h={"100%"}
-          gap="0.625rem"
+        <Flex 
+          justify="center" 
+          align="center" 
+          gap="md" 
+          sx={{ 
+            height: "100%", 
+            padding: "8px 0" 
+          }}
         >
           <ActionIcon
-            variant="filled"
+            variant="light"
+            color="gray"
             onClick={() => navigate("/clientes/" + params.data.idCliente)}
+            title="Ver detalles"
+            radius="md"
+            size="lg"
           >
             <IconEye size="1rem" />
           </ActionIcon>
           <ActionIcon
-            variant="filled"
+            variant="light"
             color="blue"
             onClick={() => handleEditCliente(params.data)}
+            title="Editar cliente"
+            radius="md"
+            size="lg"
           >
             <IconEdit size="1rem" />
           </ActionIcon>
           <ActionIcon
-            variant="filled"
+            variant="light"
             color="red"
             onClick={() => handleDeleteCliente(params.data)}
+            title="Eliminar cliente"
+            radius="md"
+            size="lg"
           >
             <IconTrash size="1rem" />
           </ActionIcon>
         </Flex>
       ),
-      cellStyle: { textAlign: "center" },
+      cellStyle: { 
+        textAlign: "center",
+        padding: "8px 0",
+        height: "100%"
+      },
       headerClass: "centered-header",
     },
   ];
 
   return (
-    <Flex
+    <Paper
+      shadow="xs"
+      p="md"
+      radius="md"
       w="100%"
       h="100%"
       sx={{ backgroundColor: "white" }}
-      direction={"column"}
     >
       {location.pathname === "/clientes" ? (
         <>
-          <Flex w="100%" h="10%" justify="space-around">
-            <Flex pl="xs" w="89%" sx={{ flexGrow: 1, minWidth: 0 }}>
-              <h1 style={{ fontSize: "calc(1rem + 1vw)" }}>Clientes</h1>
-            </Flex>
-            <Flex
-              w="11%"
-              justify="center"
-              align="center"
-              sx={{ flexShrink: 0, minWidth: "150px" }}
-            >
+          <Flex 
+            w="100%" 
+            justify="space-between" 
+            align="center" 
+            mb="md"
+            wrap="wrap"
+            gap="sm"
+          >
+            <Group spacing="xs">
+              <IconUsers size={24} color="#2b8a3e" />
+              <Title order={2} sx={{ fontSize: "calc(1.2rem + 0.5vw)" }}>
+                Gestión de Clientes
+              </Title>
+              <Badge color="green" size="lg" variant="light">
+                {filteredData.length} registros
+              </Badge>
+            </Group>
+            <Group>
+              <TextInput
+                placeholder="Buscar cliente..."
+                icon={<IconSearch size={16} />}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.currentTarget.value)}
+                sx={{ minWidth: "200px" }}
+                radius="md"
+              />
               <Button
                 variant="filled"
-                leftIcon={<IconPlus />}
+                color="green"
+                leftIcon={<IconUserPlus size={16} />}
                 onClick={() => navigate("agregar")}
+                radius="md"
               >
-                Agregar
+                Agregar Cliente
               </Button>
-            </Flex>
+            </Group>
           </Flex>
-          <DataTable
-            rowData={rowData}
-            columnDefs={columnDefs}
-            onGridReady={onGridReady}
-            rowsPerPage={5}
-            pagination={true}
-          />
+
+          {/* Stats Cards */}
+          <Group position="apart" mb="md" grow>
+            <Paper p="md" radius="md" withBorder>
+              <Group position="apart">
+                <div>
+                  <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
+                    Total Clientes
+                  </Text>
+                  <Text weight={700} size="xl">
+                    {clientes.length}
+                  </Text>
+                </div>
+                <IconUsers size={32} color="#2b8a3e" />
+              </Group>
+            </Paper>
+          </Group>
+        
+            <DataTable
+              rowData={filteredData}
+              columnDefs={columnDefs}
+              onGridReady={onGridReady}
+              rowsPerPage={10}
+              pagination={true}
+            />
         </>
       ) : (
         <Outlet />
       )}
-    </Flex>
+    </Paper>
   );
 }

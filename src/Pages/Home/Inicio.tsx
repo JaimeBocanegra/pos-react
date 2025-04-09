@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react"
+// Inicio.tsx - Improved main dashboard
+import { useState, useEffect } from "react";
 import {
   AppShell,
   Avatar,
@@ -20,9 +21,15 @@ import {
   MantineProvider,
   LoadingOverlay,
   Alert,
-} from "@mantine/core"
-import { useForm } from "@mantine/form"
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
+  Box,
+  Divider,
+  useMantineTheme,
+  Badge,
+  Tooltip,
+  ActionIcon,
+} from "@mantine/core";
+import { useForm } from "@mantine/form";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   IconUsers,
   IconBuildingStore,
@@ -34,16 +41,31 @@ import {
   IconLogout,
   IconUpload,
   IconAlertCircle,
-} from "@tabler/icons-react"
-import { supabase } from "../../supabase/client"
+  IconHome,
+  IconBuildingSkyscraper,
+  IconPhone,
+  IconMapPin,
+  IconFileDescription,
+  IconCheck,
+  IconEdit,
+  IconDashboard,
+  IconArrowLeft,
+} from "@tabler/icons-react";
+import { supabase } from "../../supabase/client";
 
 function RegistroEmpresaForm({
   onSubmit,
   empresaData,
-}: { onSubmit: (values: any) => Promise<void>; empresaData?: any }) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  onCancel,
+}: { 
+  onSubmit: (values: any) => Promise<void>; 
+  empresaData?: any;
+  onCancel?: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const theme = useMantineTheme();
 
   // Inicializar el formulario con los datos existentes si están disponibles
   const form = useForm({
@@ -63,212 +85,306 @@ function RegistroEmpresaForm({
       direccion: (value) => (value.length < 5 ? "La dirección debe tener al menos 5 caracteres" : null),
       telefono: (value) => (/^\d{10}$/.test(value) ? null : "El teléfono debe tener 10 dígitos"),
     },
-  })
+  });
 
   // Establecer la vista previa del logo existente si hay datos de empresa
   useEffect(() => {
     if (empresaData?.logo) {
-      setPreviewUrl(empresaData.logo)
+      setPreviewUrl(empresaData.logo);
     }
-  }, [empresaData])
+  }, [empresaData]);
 
   // Crear una vista previa cuando se selecciona un archivo
   useEffect(() => {
-    const file = form.values.logo
+    const file = form.values.logo;
     if (file) {
-      const reader = new FileReader()
+      const reader = new FileReader();
       reader.onload = (e) => {
-        setPreviewUrl(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
+        setPreviewUrl(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
     }
-  }, [form.values.logo])
+  }, [form.values.logo]);
 
   const handleSubmit = async (values: typeof form.values) => {
     try {
-      setLoading(true)
-      setError(null)
-      await onSubmit(values)
+      setLoading(true);
+      setError(null);
+      await onSubmit(values);
     } catch (err) {
-      console.error("Error al enviar el formulario:", err)
-      setError(err instanceof Error ? err.message : "Error al registrar la empresa")
+      console.error("Error al enviar el formulario:", err);
+      setError(err instanceof Error ? err.message : "Error al registrar la empresa");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <Paper shadow="xs" p="md" pos="relative">
-      <LoadingOverlay visible={loading} />
-      <Title order={2} align="center" mb="md">
-        {empresaData ? "Editar Empresa" : "Registro de Empresa"}
-      </Title>
+    <Paper shadow="sm" p="xl" radius="md" pos="relative" withBorder>
+      <LoadingOverlay visible={loading} overlayBlur={2} />
+      
+      <Group position="apart" mb="xl">
+        <Title order={2} color={theme.colors.blue[7]}>
+          {empresaData ? "Editar Información de Empresa" : "Registro de Empresa"}
+        </Title>
+        <IconBuildingSkyscraper size={32} color={theme.colors.blue[6]} />
+      </Group>
+
+      <Divider mb="xl" />
 
       {error && (
-        <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red" mb="md">
+        <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red" mb="xl" withCloseButton onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
       <form onSubmit={form.onSubmit(handleSubmit)}>
-        <Stack spacing="md">
-          <TextInput
-            required
-            label="Nombre de la empresa"
-            placeholder="Ingrese el nombre de la empresa"
-            {...form.getInputProps("nombre")}
-          />
-          <TextInput required label="RFC" placeholder="Ingrese el RFC de la empresa" {...form.getInputProps("rfc")} />
-          <TextInput
-            required
-            label="Dirección"
-            placeholder="Ingrese la dirección de la empresa"
-            {...form.getInputProps("direccion")}
-          />
-          <TextInput
-            required
-            label="Teléfono"
-            placeholder="Ingrese el teléfono de la empresa"
-            {...form.getInputProps("telefono")}
-            type="number"
-          />
-
-          <FileInput
-            label="Logo de la empresa"
-            accept="image/*"
-            icon={<IconUpload size={14} />}
-            {...form.getInputProps("logo")}
-            clearable
-          />
-
-          {previewUrl && (
-            <div className="text-center">
-              <p className="mb-2">Vista previa:</p>
-              <Image
-                src={previewUrl || "/placeholder.svg"}
-                alt="Vista previa del logo"
-                width={150}
-                height={150}
-                fit="contain"
-                mx="auto"
+        <Stack spacing="lg">
+          <Group grow align="flex-start">
+            <Box>
+              <TextInput
+                required
+                label="Nombre de la empresa"
+                placeholder="Ingrese el nombre de la empresa"
+                icon={<IconBuildingStore size={16} />}
+                {...form.getInputProps("nombre")}
+                size="md"
                 radius="md"
-                withPlaceholder
               />
-            </div>
-          )}
+              
+              <TextInput 
+                required 
+                label="RFC" 
+                placeholder="Ingrese el RFC de la empresa" 
+                icon={<IconFileDescription size={16} />}
+                {...form.getInputProps("rfc")} 
+                mt="md"
+                size="md"
+                radius="md"
+              />
+            </Box>
+            
+            <Box>
+              <TextInput
+                required
+                label="Dirección"
+                placeholder="Ingrese la dirección de la empresa"
+                icon={<IconMapPin size={16} />}
+                {...form.getInputProps("direccion")}
+                size="md"
+                radius="md"
+              />
+              
+              <TextInput
+                required
+                label="Teléfono"
+                placeholder="Ingrese el teléfono de la empresa"
+                icon={<IconPhone size={16} />}
+                {...form.getInputProps("telefono")}
+                type="number"
+                mt="md"
+                size="md"
+                radius="md"
+              />
+            </Box>
+          </Group>
 
-          <Button type="submit" loading={loading} fullWidth>
-            {empresaData ? "Actualizar empresa" : "Registrar empresa"}
-          </Button>
+          <Divider label="Logo de la empresa" labelPosition="center" />
 
-          {empresaData && (
-            <Button variant="outline" color="gray" onClick={() => window.location.reload()} fullWidth>
-              Cancelar
+          <Group position="center" spacing="xl">
+            <Box sx={{ width: '200px' }}>
+              <FileInput
+                label="Seleccionar logo"
+                accept="image/*"
+                icon={<IconUpload size={14} />}
+                {...form.getInputProps("logo")}
+                clearable
+                size="md"
+                radius="md"
+              />
+            </Box>
+
+            <Paper p="md" radius="md" withBorder sx={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {previewUrl ? (
+                <Image
+                  src={previewUrl || "/placeholder.svg"}
+                  alt="Vista previa del logo"
+                  width={180}
+                  height={180}
+                  fit="contain"
+                  withPlaceholder
+                  placeholder={<IconBuildingSkyscraper size={80} color={theme.colors.gray[3]} />}
+                />
+              ) : (
+                <Box sx={{ textAlign: 'center' }}>
+                  <IconBuildingSkyscraper size={80} color={theme.colors.gray[3]} />
+                  <Text color="dimmed" size="sm" mt="xs">Vista previa del logo</Text>
+                </Box>
+              )}
+            </Paper>
+          </Group>
+
+          <Group position="right" mt="xl" spacing="md">
+            {empresaData && (
+              <Button 
+                variant="outline" 
+                color="gray" 
+                onClick={onCancel} 
+                size="md"
+                radius="md"
+              >
+                Cancelar
+              </Button>
+            )}
+            <Button 
+              type="submit" 
+              loading={loading} 
+              size="md"
+              radius="md"
+              leftIcon={<IconCheck size={16} />}
+            >
+              {empresaData ? "Actualizar empresa" : "Registrar empresa"}
             </Button>
-          )}
+          </Group>
         </Stack>
       </form>
     </Paper>
-  )
+  );
 }
 
 function DatosEmpresa({ empresa, onEdit }: { empresa: any; onEdit: () => void }) {
+  const theme = useMantineTheme();
+  
   return (
-    <Paper shadow="xs" p="md">
-      <Title order={2} align="center" mb="md">
-        Datos de la Empresa
-      </Title>
-      <Stack spacing="md">
-        {empresa.logo && (
-          <div className="text-center">
+    <Paper shadow="sm" p="xl" radius="md" withBorder>
+      <Group position="apart" mb="md">
+        <Title order={2} color={theme.colors.blue[7]}>
+          Información de la Empresa
+        </Title>
+        <Tooltip label="Editar información">
+          <ActionIcon color="blue" variant="light" onClick={onEdit} size="lg" radius="md">
+            <IconEdit size={20} />
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+      
+      <Divider mb="xl" />
+      
+      <Group position="apart" align="flex-start">
+        <Stack spacing="lg" sx={{ flex: 1 }}>
+          <Group spacing="md">
+            <IconBuildingStore size={20} color={theme.colors.blue[6]} />
+            <Box>
+              <Text size="xs" color="dimmed">Nombre de la Empresa</Text>
+              <Text weight={600} size="lg">{empresa.nombre}</Text>
+            </Box>
+          </Group>
+          
+          <Group spacing="md">
+            <IconFileDescription size={20} color={theme.colors.blue[6]} />
+            <Box>
+              <Text size="xs" color="dimmed">RFC</Text>
+              <Text weight={600}>{empresa.rfc}</Text>
+            </Box>
+          </Group>
+          
+          <Group spacing="md">
+            <IconMapPin size={20} color={theme.colors.blue[6]} />
+            <Box>
+              <Text size="xs" color="dimmed">Dirección</Text>
+              <Text weight={600}>{empresa.direccion}</Text>
+            </Box>
+          </Group>
+          
+          <Group spacing="md">
+            <IconPhone size={20} color={theme.colors.blue[6]} />
+            <Box>
+              <Text size="xs" color="dimmed">Teléfono</Text>
+              <Text weight={600}>{empresa.telefono}</Text>
+            </Box>
+          </Group>
+        </Stack>
+        
+        <Paper p="lg" radius="md" withBorder sx={{ width: '250px', height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {empresa.logo ? (
             <Image
               src={empresa.logo || "/placeholder.svg"}
               alt="Logo de la empresa"
-              width={200}
-              height={200}
+              width={220}
+              height={220}
               fit="contain"
-              mx="auto"
-              radius="md"
               withPlaceholder
+              placeholder={<IconBuildingSkyscraper size={80} color={theme.colors.gray[3]} />}
             />
-          </div>
-        )}
-        <Group>
-          <Text weight={700}>Nombre:</Text>
-          <Text>{empresa.nombre}</Text>
-        </Group>
-        <Group>
-          <Text weight={700}>RFC:</Text>
-          <Text>{empresa.rfc}</Text>
-        </Group>
-        <Group>
-          <Text weight={700}>Dirección:</Text>
-          <Text>{empresa.direccion}</Text>
-        </Group>
-        <Group>
-          <Text weight={700}>Teléfono:</Text>
-          <Text>{empresa.telefono}</Text>
-        </Group>
-        <Button onClick={onEdit} fullWidth mt="md">
-          Editar información
-        </Button>
-      </Stack>
+          ) : (
+            <Box sx={{ textAlign: 'center' }}>
+              <IconBuildingSkyscraper size={80} color={theme.colors.gray[3]} />
+              <Text color="dimmed" size="sm" mt="xs">Sin logo</Text>
+            </Box>
+          )}
+        </Paper>
+      </Group>
+      
+      <Box mt="xl">
+        <Badge size="lg" color="blue" variant="filled">
+          Empresa Registrada
+        </Badge>
+      </Box>
     </Paper>
-  )
+  );
 }
 
 export function Inicio() {
-  const [opened, setOpened] = useState(false)
-  const [empresa, setEmpresa] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [editMode, setEditMode] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const location = useLocation()
-  const navigate = useNavigate()
+  const [opened, setOpened] = useState(false);
+  const [empresa, setEmpresa] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [editMode, setEditMode] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const theme = useMantineTheme();
 
   const cargarDatosEmpresa = async () => {
     try {
-      setLoading(true)
-      setError(null)
+      setLoading(true);
+      setError(null);
 
-      const { data, error } = await supabase.from("empresas").select("*").limit(1)
+      const { data, error } = await supabase.from("empresas").select("*").limit(1);
 
       if (error && error.code !== "PGRST116") {
-        console.error("Error al cargar datos de empresa:", error)
-        setError("Error al cargar datos de la empresa")
+        console.error("Error al cargar datos de empresa:", error);
+        setError("Error al cargar datos de la empresa");
       }
 
       if (data && data.length > 0) {
-        setEmpresa(data[0])
+        setEmpresa(data[0]);
       }
     } catch (err) {
-      console.error("Error inesperado:", err)
-      setError("Error inesperado al cargar datos")
+      console.error("Error inesperado:", err);
+      setError("Error inesperado al cargar datos");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    cargarDatosEmpresa()
-  }, [])
+    cargarDatosEmpresa();
+  }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    navigate("/login")
-  }
+    await supabase.auth.signOut();
+    navigate("/login");
+  };
 
   const handleRegistroEmpresa = async (values: any) => {
     try {
-
       // Primero subimos el logo si existe
-      let logoUrl = null
+      let logoUrl = null;
       if (values.logo) {
         // Generar nombre único para el archivo
-        const fileExt = values.logo.name.split(".").pop()
-        const fileName = `logo_${Date.now()}.${fileExt}`
-        const filePath = `${fileName}`
-
+        const fileExt = values.logo.name.split(".").pop();
+        const fileName = `logo_${Date.now()}.${fileExt}`;
+        const filePath = `${fileName}`;
 
         // Subir el archivo
         const { error: uploadError, data: uploadData } = await supabase.storage
@@ -276,20 +392,19 @@ export function Inicio() {
           .upload(filePath, values.logo, {
             cacheControl: "3600",
             upsert: true,
-          })
+          });
 
         if (uploadError) {
-          throw new Error(`Error al subir logo: ${uploadError.message}`)
+          throw new Error(`Error al subir logo: ${uploadError.message}`);
         }
 
-
         // Obtener URL pública
-        const { data } = supabase.storage.from("empresas").getPublicUrl(filePath)
+        const { data } = supabase.storage.from("empresas").getPublicUrl(filePath);
 
-        logoUrl = data.publicUrl
+        logoUrl = data.publicUrl;
       } else if (empresa?.logo && editMode) {
         // Mantener el logo existente si estamos en modo edición
-        logoUrl = empresa.logo
+        logoUrl = empresa.logo;
       }
 
       // Preparamos los datos para guardar
@@ -299,10 +414,9 @@ export function Inicio() {
         direccion: values.direccion,
         telefono: values.telefono,
         logo: logoUrl,
-      }
+      };
 
-
-      let result
+      let result;
       if (empresa?.id_empresa) {
         // Si existe, actualizamos
         const { data: updatedData, error: updateError } = await supabase
@@ -310,53 +424,58 @@ export function Inicio() {
           .update(empresaData)
           .eq("id_empresa", empresa.id_empresa)
           .select()
-          .single()
+          .single();
 
         if (updateError) {
-          throw new Error(`Error al actualizar empresa: ${updateError.message}`)
+          throw new Error(`Error al actualizar empresa: ${updateError.message}`);
         }
 
-        result = updatedData
+        result = updatedData;
       } else {
         // Si no existe, insertamos
         const { data: insertedData, error: insertError } = await supabase
           .from("empresas")
           .insert([empresaData])
           .select()
-          .single()
+          .single();
 
         if (insertError) {
-          throw new Error(`Error al insertar empresa: ${insertError.message}`)
+          throw new Error(`Error al insertar empresa: ${insertError.message}`);
         }
 
-        result = insertedData
+        result = insertedData;
       }
 
       // Actualizamos el estado para mostrar los datos en lugar del formulario
-      setEmpresa(result)
-      setEditMode(false)
+      setEmpresa(result);
+      setEditMode(false);
     } catch (err) {
-      throw err
+      throw err;
     }
-  }
+  };
 
   const handleEditClick = () => {
-    setEditMode(true)
-  }
+    setEditMode(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditMode(false);
+  };
 
   const collections = [
-    { icono: <IconUsers />, label: "Clientes", link: "/clientes" },
-    { icono: <IconTruckDelivery />, label: "Proveedores", link: "/proveedores" },
-    { icono: <IconPackage />, label: "Productos", link: "/productos" },
-    { icono: <IconShoppingBagPlus />, label: "Compras", link: "/compras" },
-    { icono: <IconBuildingStore />, label: "Ventas", link: "/ventas" },
-    { icono: <IconReport />, label: "Reportes", link: "/reportes" },
-    { icono: <IconSettings />, label: "Configuraciones", link: "/configuraciones" },
-  ]
+    { icono: <IconDashboard size={20} />, label: "Inicio", link: "/" },
+    { icono: <IconUsers size={20} />, label: "Clientes", link: "/clientes" },
+    { icono: <IconTruckDelivery size={20} />, label: "Proveedores", link: "/proveedores" },
+    { icono: <IconPackage size={20} />, label: "Productos", link: "/productos" },
+    { icono: <IconShoppingBagPlus size={20} />, label: "Compras", link: "/compras" },
+    { icono: <IconBuildingStore size={20} />, label: "Ventas", link: "/ventas" },
+    { icono: <IconReport size={20} />, label: "Reportes", link: "/reportes" },
+    { icono: <IconSettings size={20} />, label: "Configuraciones", link: "/configuraciones" },
+  ];
 
   const handleLinkClick = () => {
-    setOpened(false)
-  }
+    setOpened(false);
+  };
 
   const collectionLinks = collections.map((item, index) => (
     <NavLink
@@ -365,87 +484,130 @@ export function Inicio() {
       icon={item.icono}
       component={Link}
       to={item.link}
-      variant="filled"
-      color="indigo"
-      active={location.pathname.startsWith(item.link)}
+      variant="light"
+      color="blue"
+      active={location.pathname === item.link || (item.link !== "/" && location.pathname.startsWith(item.link))}
       onClick={handleLinkClick}
+      sx={(theme) => ({
+        borderRadius: theme.radius.md,
+        marginBottom: 4,
+        fontWeight: 500
+      })}
     />
-  ))
+  ));
 
-  const isHomePage = location.pathname === "/"
+  const isHomePage = location.pathname === "/";
 
   const renderContent = () => {
     if (loading) {
       return (
-        <Paper shadow="xs" p="md">
-          <LoadingOverlay visible={true} />
-          <div style={{ height: "200px" }}></div>
+        <Paper shadow="xs" p="xl" radius="md" withBorder>
+          <LoadingOverlay visible={true} overlayBlur={2} />
+          <div style={{ height: "300px" }}></div>
         </Paper>
-      )
+      );
     }
 
     if (error) {
       return (
-        <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red">
+        <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red" withCloseButton onClose={() => setError(null)}>
           {error}
           <Button onClick={cargarDatosEmpresa} mt="md" variant="outline">
             Reintentar
           </Button>
         </Alert>
-      )
+      );
     }
 
     if (editMode) {
       // Pasar los datos de la empresa al formulario cuando está en modo edición
-      return <RegistroEmpresaForm onSubmit={handleRegistroEmpresa} empresaData={empresa} />
+      return <RegistroEmpresaForm onSubmit={handleRegistroEmpresa} empresaData={empresa} onCancel={handleCancelEdit} />;
     }
 
     if (!empresa) {
       // Si no hay empresa, mostrar el formulario de registro sin datos
-      return <RegistroEmpresaForm onSubmit={handleRegistroEmpresa} />
+      return <RegistroEmpresaForm onSubmit={handleRegistroEmpresa} />;
     }
 
-    return <DatosEmpresa empresa={empresa} onEdit={handleEditClick} />
-  }
+    return <DatosEmpresa empresa={empresa} onEdit={handleEditClick} />;
+  };
 
   return (
-    <MantineProvider withGlobalStyles withNormalizeCSS>
+    <MantineProvider withGlobalStyles withNormalizeCSS theme={{ colorScheme: 'light', primaryColor: 'blue' }}>
       <AppShell
         navbarOffsetBreakpoint="sm"
         asideOffsetBreakpoint="sm"
         navbar={
-          <Navbar p="md" hiddenBreakpoint="sm" hidden={!opened} width={{ sm: 200, lg: 300 }}>
-            {collectionLinks}
+          <Navbar p="md" hiddenBreakpoint="sm" hidden={!opened} width={{ sm: 250, lg: 300 }} sx={{ boxShadow: theme.shadows.sm }}>
+            {/* <Navbar.Section mb="lg">
+              <Group position="apart" mb="md">
+                <Title order={3} color={theme.colors.blue[7]}>POS React</Title>
+                <MediaQuery largerThan="sm" styles={{ display: "none" }}>
+                  <ActionIcon onClick={() => setOpened(false)} variant="light">
+                    <IconArrowLeft size={18} />
+                  </ActionIcon>
+                </MediaQuery>
+              </Group>
+              <Divider />
+            </Navbar.Section> */}
+            
+            <Navbar.Section grow>
+              {collectionLinks}
+            </Navbar.Section>
+            
+            <Navbar.Section>
+              <Divider my="md" />
+              <Group position="apart">
+                <Group>
+                  <Avatar radius="xl" size="md" color="blue" />
+                  <Box>
+                    <Text size="sm" weight={500}>Administrador</Text>
+                    <Text size="xs" color="dimmed">admin@sistema.com</Text>
+                  </Box>
+                </Group>
+                <ActionIcon color="red" variant="light" onClick={handleLogout} title="Cerrar sesión">
+                  <IconLogout size={18} />
+                </ActionIcon>
+              </Group>
+            </Navbar.Section>
           </Navbar>
         }
         header={
-          <Header height={80} px={10}>
-            <Group position="apart" align="center" sx={{ height: "100%" }}>
-              <MediaQuery largerThan="sm" styles={{ display: "none" }}>
-                <Burger opened={opened} onClick={() => setOpened((o) => !o)} size="sm" mr="xl" />
-              </MediaQuery>
-              <MediaQuery smallerThan="sm" styles={{ fontSize: "1rem" }}>
-                <h1>POS React</h1>
-              </MediaQuery>
+          <Header height={70} p="md" sx={{ boxShadow: theme.shadows.sm }}>
+            <Group position="apart" sx={{ height: "100%" }}>
               <Group>
-                <Avatar src="ruta_a_la_foto_de_usuario" alt="Usuario" radius="xl" size="md" />
-                <MediaQuery smallerThan="sm" styles={{ fontSize: "0.8rem", padding: "0.5rem" }}>
-                  <Button variant="filled" color="red" leftIcon={<IconLogout />} onClick={handleLogout}>
-                    <MediaQuery smallerThan="sm" styles={{ display: "none" }}>
-                      <span>Cerrar Sesión</span>
-                    </MediaQuery>
-                  </Button>
+                <MediaQuery largerThan="sm" styles={{ display: "none" }}>
+                  <Burger opened={opened} onClick={() => setOpened((o) => !o)} size="sm" />
                 </MediaQuery>
+                <MediaQuery smallerThan="sm" styles={{ fontSize: "1.2rem" }}>
+                  <Title order={3} color={theme.colors.blue[7]}>POS React</Title>
+                </MediaQuery>
+              </Group>
+              
+              <Group>
+                <MediaQuery smallerThan="sm" styles={{ display: "none" }}>
+                  <Text>Bienvenido al Sistema</Text>
+                </MediaQuery>
+                <Button 
+                  variant="light" 
+                  color="red" 
+                  leftIcon={<IconLogout size={16} />} 
+                  onClick={handleLogout}
+                  radius="md"
+                >
+                  <MediaQuery smallerThan="sm" styles={{ display: "none" }}>
+                    <span>Cerrar Sesión</span>
+                  </MediaQuery>
+                </Button>
               </Group>
             </Group>
           </Header>
         }
       >
-        <Container size="lg" py="xl">
+        <Container size="xl" py="xl">
           {isHomePage ? renderContent() : <Outlet />}
         </Container>
       </AppShell>
     </MantineProvider>
-  )
+  );
 }
-

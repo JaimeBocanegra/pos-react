@@ -1,85 +1,176 @@
-import { Button, Flex, Input, ActionIcon, MediaQuery } from "@mantine/core";
-import React from "react";
-import { IconUsers, IconArrowLeft } from "@tabler/icons-react";
+// Agregar.tsx - Improved supplier creation form
+import { Button, Flex, TextInput, ActionIcon, Paper, Title, Group, Box, Text, Alert } from "@mantine/core";
+import React, { useState } from "react";
+import { IconTruckDelivery, IconArrowLeft, IconBuildingStore, IconCheck, IconAlertCircle } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabase/client";
 
 export function Agregar() {
   const navigate = useNavigate();
-  const [nombre, setNombre] = React.useState("");
-  const [error, setError] = React.useState("");
-  const handleSubmit = async (e: any) => {
+  const [nombre, setNombre] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (nombre === "") {
-      setError("Por favor ingrese el nombre del provvedor");
+    
+    // Reset states
+    setError("");
+    setSuccess(false);
+    
+    // Validate input
+    if (nombre.trim() === "") {
+      setError("Por favor ingrese el nombre del proveedor");
       return;
     }
+    
+    setLoading(true);
+    
     try {
-      const { data, error } = await supabase
+      const { data, error: supabaseError } = await supabase
         .from("Proveedores")
         .insert({ NombreCompleto: nombre });
-      setNombre("");
-      setError("");
-      navigate(-1);
-      if (error) {
-        throw error;
+      
+      if (supabaseError) {
+        throw supabaseError;
       }
-      console.log(data);
-    } catch (error) {
-      console.log(error);
+      
+      console.log("Proveedor creado:", data);
+      setSuccess(true);
+      
+      // Reset form
+      setNombre("");
+      
+      // Navigate back after a short delay to show success message
+      setTimeout(() => {
+        navigate(-1);
+      }, 1500);
+      
+    } catch (error: any) {
+      console.error("Error al crear proveedor:", error);
+      setError(error.message || "Ocurrió un error al crear el proveedor");
+    } finally {
+      setLoading(false);
     }
   };
+
   return (
-    <Flex
-      w="100%"
-      h="100%"
-      justify="flex-start"
-      direction={"column"}
-      gap="1rem"
-      align="center"
-      p="1rem"
-    >
-      <Flex w="100%" h="10%" align="center">
-        <Flex
-          pl="xs"
-          w="100%"
-          align={"center"}
-          sx={{ flexGrow: 1, minWidth: 0 }}
+    <Paper shadow="xs" p="xl" radius="md" w="100%" h="100%">
+      <form onSubmit={handleSubmit} style={{ height: "100%" }}>
+        <Flex 
+          direction="column" 
+          h="100%" 
+          gap="xl"
         >
-          <ActionIcon
-            color="indigo"
-            size="lg"
-            variant="transparent"
-            mr="md"
-            onClick={() => navigate(-1)}
+          {/* Header */}
+          <Flex w="100%" align="center" justify="space-between">
+            <Group>
+              <ActionIcon 
+                color="blue" 
+                size="lg" 
+                variant="light" 
+                onClick={() => navigate(-1)}
+                radius="xl"
+              >
+                <IconArrowLeft size="1.2rem" />
+              </ActionIcon>
+              <Title order={2} sx={(theme) => ({ 
+                fontSize: "calc(1.1rem + 0.5vw)",
+                color: theme.colors.blue[7]
+              })}>
+                Alta de Proveedor
+              </Title>
+            </Group>
+            <IconTruckDelivery size={28} color="#228be6" />
+          </Flex>
+
+          {/* Form Content */}
+          <Box 
+            sx={{ 
+              maxWidth: "600px", 
+              width: "100%", 
+              margin: "0 auto",
+              flex: 1
+            }}
           >
-            <IconArrowLeft size="1.625rem" />
-          </ActionIcon>
-          <MediaQuery smallerThan="sm" styles={{ fontSize: "1.25rem" }}>
-            <h1 style={{ fontSize: "calc(1rem + 1vw)", margin: 0 }}>
-              Alta de Proveedores <IconUsers size="1.5rem" />
-            </h1>
-          </MediaQuery>
+            {success && (
+              <Alert 
+                icon={<IconCheck size={16} />} 
+                title="¡Proveedor creado con éxito!" 
+                color="blue" 
+                mb="lg"
+                withCloseButton
+                onClose={() => setSuccess(false)}
+              >
+                El proveedor ha sido registrado correctamente.
+              </Alert>
+            )}
+            
+            <Paper p="lg" radius="md" withBorder>
+              <Title order={4} mb="md">Información del Proveedor</Title>
+              
+              <TextInput
+                label="Nombre del Proveedor"
+                placeholder="Ingrese el nombre completo"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                error={error}
+                required
+                mb="md"
+                icon={<IconBuildingStore size={16} />}
+                size="md"
+                radius="md"
+                autoFocus
+              />
+              
+              {error && (
+                <Alert 
+                  icon={<IconAlertCircle size={16} />} 
+                  title="Error" 
+                  color="red" 
+                  mb="md"
+                  withCloseButton
+                  onClose={() => setError("")}
+                >
+                  {error}
+                </Alert>
+              )}
+              
+              <Text color="dimmed" size="sm" mb="xl">
+                Complete el nombre del proveedor para registrarlo en el sistema.
+              </Text>
+              
+              <Group position="apart" mt="xl">
+                <Button 
+                  variant="outline" 
+                  color="gray" 
+                  onClick={() => navigate(-1)}
+                  radius="md"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit" 
+                  color="blue" 
+                  radius="md"
+                  loading={loading}
+                  leftIcon={<IconBuildingStore size={16} />}
+                >
+                  Guardar Proveedor
+                </Button>
+              </Group>
+            </Paper>
+          </Box>
+          
+          {/* Footer */}
+          <Box>
+            <Text align="center" size="sm" color="dimmed">
+              Los proveedores registrados aparecerán en la lista de proveedores.
+            </Text>
+          </Box>
         </Flex>
-      </Flex>
-      <MediaQuery smallerThan="md" styles={{ width: "80%" }}>
-        <Input.Wrapper
-          id="nombre-label"
-          label="Nombre del nuevo proveedor"
-          error={error}
-          w={"40%"}
-        >
-          <Input
-            id="nombre"
-            placeholder="Nombre"
-            onChange={(e) => setNombre(e.target.value)}
-            value={nombre}
-          />
-        </Input.Wrapper>
-      </MediaQuery>
-      <Button variant="filled" onClick={handleSubmit}>
-        Guardar
-      </Button>
-    </Flex>
+      </form>
+    </Paper>
   );
 }
