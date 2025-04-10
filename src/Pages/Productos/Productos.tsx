@@ -13,6 +13,11 @@ import {
   TextInput,
   LoadingOverlay,
   Menu,
+  Modal,
+  Checkbox,
+  Stack,
+  Alert,
+  ScrollArea,
 } from "@mantine/core"
 import {
   IconPlus,
@@ -24,7 +29,11 @@ import {
   IconAlertTriangle,
   IconUpload,
   IconFileDownload,
-  IconFileSpreadsheet,
+  IconRefresh,
+  IconArrowsJoin2,
+  IconX,
+  IconInfoCircle,
+  IconCheck,
 } from "@tabler/icons-react"
 import DataTable from "../../components/DataTable"
 import { useEffect, useState, useMemo } from "react"
@@ -34,6 +43,7 @@ import { obtenerProductos, eliminarProducto, importarProductos } from "../servic
 import { CustomFilter } from "../../components/CustomFilter"
 import { ConfiguracionService } from "../services/ConfiguracionService"
 import * as XLSX from "xlsx"
+import { supabase } from "../../supabase/client"
 
 // Componente para renderizar montos
 const MontoRenderer = (props: any) => {
@@ -57,6 +67,26 @@ const StockRenderer = ({ value, stockMinimo }: { value: any; stockMinimo: number
   )
 }
 
+interface ImportResult {
+  inserted: number
+  updated: number
+  stockAdded: number
+  skipped: number
+  errors: string[]
+  total: number
+}
+
+interface DuplicateProduct {
+  Codigo: string
+  Descripcion: string
+  Stock: number
+  existingStock: number
+  PrecioCompra: number
+  existingPrecioCompra: number
+  PrecioVenta: number
+  existingPrecioVenta: number
+}
+
 export function Productos() {
   const [gridApi, setGridApi] = useState<any | null>(null)
   const [gridColumnApi, setGridColumnApi] = useState<any | null>(null)
@@ -65,8 +95,18 @@ export function Productos() {
   const [stockMinimo, setStockMinimo] = useState(5)
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [importModalOpen, setImportModalOpen] = useState(false)
+  const [duplicatesList, setDuplicatesList] = useState<DuplicateProduct[]>([])
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
+
+  const [importOptions, setImportOptions] = useState({
+    updateExisting: false,
+    sumStock: true,
+    skipDuplicates: false,
+  })
 
   // Obtener el valor de stock mínimo desde configuraciones
   const obtenerStockMinimo = async () => {
@@ -107,7 +147,7 @@ export function Productos() {
       (producto) =>
         producto?.Codigo?.toLowerCase()?.includes(searchLower) ||
         producto?.Descripcion?.toLowerCase()?.includes(searchLower) ||
-        producto?.Categoria?.toLowerCase()?.includes(searchLower)
+        producto?.Categoria?.toLowerCase()?.includes(searchLower),
     )
   }, [productos, searchTerm])
 
@@ -179,9 +219,7 @@ export function Productos() {
       field: "Stock",
       flex: 1,
       minWidth: 100,
-      cellRenderer: (params: any) => (
-        <StockRenderer value={params.value} stockMinimo={stockMinimo} />
-      ),
+      cellRenderer: (params: any) => <StockRenderer value={params.value} stockMinimo={stockMinimo} />,
       cellStyle: { display: "flex", alignItems: "center" },
     },
     {
@@ -204,11 +242,7 @@ export function Productos() {
           >
             <IconEdit size={16} />
           </ActionIcon>
-          <ActionIcon
-            color="red"
-            onClick={() => handleDeleteProducto(params.data)}
-            title="Eliminar"
-          >
+          <ActionIcon color="red" onClick={() => handleDeleteProducto(params.data)} title="Eliminar">
             <IconTrash size={16} />
           </ActionIcon>
         </Group>
@@ -283,47 +317,160 @@ export function Productos() {
     })
   }
 
+  // Manejar selección de archivo
+  const handleFileSelect = async (file: File) => {
+    setSelectedFile(file)
+    setImporting(true)
+    setImportResult(null)
+
+    try {
+      // Leer archivo para validar estructura y detectar duplicados
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data)
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+      const jsonData = XLSX.utils.sheet_to_json(worksheet)
+
+      // Validar que el archivo tenga datos
+      if (!jsonData || jsonData.length === 0) {
+        throw new Error("El archivo está vacío o no contiene datos válidos")
+      }
+
+      // Definir las columnas esperadas según la plantilla
+      const expectedColumns = ["Codigo", "Descripcion", "Categoria", "Medida", "PrecioCompra", "PrecioVenta", "Stock"]
+
+      // Verificar que el archivo tenga las columnas esperadas
+      const firstRow = jsonData[0] as any
+      const missingColumns = expectedColumns.filter((col) => !(col in firstRow))
+
+      if (missingColumns.length > 0) {
+        throw new Error(
+          `El archivo no contiene todas las columnas esperadas según la plantilla. ` +
+            `Columnas faltantes: ${missingColumns.join(", ")}. ` +
+            `Por favor, utilice la plantilla de descarga proporcionada por el sistema.`,
+        )
+      }
+
+      // Obtener productos existentes para comparar
+      const { data: existingProducts, error } = await supabase
+        .from("Productos")
+        .select("Codigo, Descripcion, Stock, PrecioCompra, PrecioVenta")
+
+      if (error) throw error
+
+      const existingCodes = new Set(existingProducts?.map((p) => p.Codigo) || [])
+      const duplicates = jsonData
+        .filter((item: any) => existingCodes.has(item.Codigo?.toString()))
+        .map((item: any) => {
+          const existing = existingProducts?.find((p) => p.Codigo === item.Codigo)
+          return {
+            Codigo: item.Codigo,
+            Descripcion: item.Descripcion,
+            Stock: Number(item.Stock) || 0,
+            existingStock: existing?.Stock || 0,
+            PrecioCompra: Number(item.PrecioCompra) || 0,
+            existingPrecioCompra: existing?.PrecioCompra || 0,
+            PrecioVenta: Number(item.PrecioVenta) || 0,
+            existingPrecioVenta: existing?.PrecioVenta || 0,
+          }
+        })
+
+      if (duplicates.length > 0) {
+        setDuplicatesList(duplicates)
+        setImportModalOpen(true)
+      } else {
+        // Si no hay duplicados, proceder con importación directa
+        const result = await importarProductos(file, {
+          updateExisting: false,
+          sumStock: false,
+          skipDuplicates: false,
+        })
+
+        if (result.errors && result.errors.length > 0) {
+          throw new Error(result.errors[0])
+        }
+
+        setImportResult(result)
+        await obtieneProductos()
+        showImportResult(result)
+      }
+    } catch (error: any) {
+      Swal.fire({
+        title: "Error en la importación",
+        text: error.message || "Error al procesar el archivo",
+        icon: "error",
+        confirmButtonText: "Entendido",
+      })
+    } finally {
+      setImporting(false)
+    }
+  }
+
   // Manejar importación de productos
-  const handleImportProducts = async () => {
-    // Crear input file dinámicamente
+  const handleImportProducts = () => {
     const input = document.createElement("input")
     input.type = "file"
     input.accept = ".xlsx, .xls, .csv"
-
-    input.onchange = async (e: Event) => {
+    input.onchange = (e: Event) => {
       const file = (e.target as HTMLInputElement).files?.[0]
-      if (!file) return
-
-      try {
-        setImporting(true)
-        const result = await Swal.fire({
-          title: "¿Importar productos?",
-          text: "Esta acción agregará los productos del archivo a tu inventario",
-          icon: "question",
-          showCancelButton: true,
-          confirmButtonText: "Sí, importar",
-          cancelButtonText: "Cancelar",
-        })
-
-        if (result.isConfirmed) {
-          await importarProductos(file)
-          await obtieneProductos()
-          Swal.fire("Éxito", "Productos importados correctamente", "success")
-        }
-      } catch (error: any) {
-        Swal.fire("Error", error.message || "Error al importar productos", "error")
-      } finally {
-        setImporting(false)
-      }
+      if (file) handleFileSelect(file)
     }
-
     input.click()
+  }
+
+  // Confirmar importación con opciones seleccionadas
+  const handleConfirmImport = async () => {
+    if (!selectedFile) return
+
+    try {
+      setImportModalOpen(false)
+      setImporting(true)
+
+      const result = await importarProductos(selectedFile, importOptions)
+
+      if (result.errors && result.errors.length > 0) {
+        throw new Error(result.errors[0])
+      }
+
+      setImportResult(result)
+      await obtieneProductos()
+      showImportResult(result)
+    } catch (error: any) {
+      Swal.fire({
+        title: "Error en la importación",
+        text: error.message || "Error al importar productos",
+        icon: "error",
+        confirmButtonText: "Entendido",
+      })
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  // Mostrar resultados de la importación
+  const showImportResult = (result: ImportResult) => {
+    Swal.fire({
+      title: "Importación completada",
+      html: `
+        <div style="text-align: left;">
+          <p><strong>Resumen de la operación:</strong></p>
+          <ul>
+            <li>✅ <strong>Nuevos productos:</strong> ${result.inserted}</li>
+            ${result.updated > 0 ? `<li>🔄 <strong>Actualizados:</strong> ${result.updated}</li>` : ""}
+            ${result.stockAdded > 0 ? `<li>🔼 <strong>Stocks incrementados:</strong> ${result.stockAdded}</li>` : ""}
+            ${result.skipped > 0 ? `<li>⏭️ <strong>Omitidos:</strong> ${result.skipped}</li>` : ""}
+          </ul>
+          <p>Total procesados: ${result.total}</p>
+        </div>
+      `,
+      icon: "success",
+      confirmButtonText: "Aceptar",
+    })
   }
 
   return (
     <Paper shadow="xs" p="md" radius="md" w="100%" h="100%" sx={{ backgroundColor: "white" }} pos="relative">
       <LoadingOverlay visible={loading || importing} overlayBlur={2} />
-      
+
       {location.pathname === "/productos" ? (
         <>
           <Flex justify="space-between" align="center" mb="md" wrap="wrap" gap="sm">
@@ -348,7 +495,7 @@ export function Productos() {
                 sx={{ minWidth: "200px" }}
                 radius="md"
               />
-              
+
               <Menu shadow="md" width={200} position="bottom-end">
                 <Menu.Target>
                   <Button variant="filled" color="blue" leftIcon={<IconPlus size={16} />} radius="md">
@@ -356,28 +503,36 @@ export function Productos() {
                   </Button>
                 </Menu.Target>
                 <Menu.Dropdown>
-                  <Menu.Item 
-                    icon={<IconPlus size={14} />} 
-                    onClick={() => navigate("agregar")}
-                  >
+                  <Menu.Item icon={<IconPlus size={14} />} onClick={() => navigate("agregar")}>
                     Producto Individual
                   </Menu.Item>
-                  <Menu.Item 
-                    icon={<IconUpload size={14} />} 
-                    onClick={handleImportProducts}
-                  >
+                  <Menu.Item icon={<IconUpload size={14} />} onClick={handleImportProducts}>
                     Importar Masivo
                   </Menu.Item>
-                  <Menu.Item 
-                    icon={<IconFileDownload size={14} />} 
-                    onClick={generateAndDownloadTemplate}
-                  >
+                  <Menu.Item icon={<IconFileDownload size={14} />} onClick={generateAndDownloadTemplate}>
                     Descargar Plantilla
                   </Menu.Item>
                 </Menu.Dropdown>
               </Menu>
             </Group>
           </Flex>
+
+          {importResult && (
+            <Alert
+              icon={<IconInfoCircle size={18} />}
+              title="Resultado de importación"
+              color="blue"
+              mb="md"
+              onClose={() => setImportResult(null)}
+              withCloseButton
+            >
+              <Text size="sm">
+                <strong>Nuevos:</strong> {importResult.inserted} |<strong> Actualizados:</strong> {importResult.updated}{" "}
+                |<strong> Stock +:</strong> {importResult.stockAdded} |<strong> Omitidos:</strong>{" "}
+                {importResult.skipped}
+              </Text>
+            </Alert>
+          )}
 
           <Group grow mb="md">
             <Paper p="md" radius="md" withBorder>
@@ -417,6 +572,139 @@ export function Productos() {
               pagination={true}
             />
           </Box>
+
+          {/* Modal para manejar duplicados */}
+          <Modal
+            opened={importModalOpen}
+            onClose={() => setImportModalOpen(false)}
+            title={
+              <Text size="xl" fw={600}>
+                Manejar productos duplicados
+              </Text>
+            }
+            size="xl"
+            centered
+          >
+            <Stack spacing="lg">
+              <Text>
+                Se encontraron <strong>{duplicatesList.length} productos</strong> que ya existen en el sistema.
+                Seleccione cómo desea manejar estos duplicados:
+              </Text>
+
+              <Box>
+                <Checkbox
+                  label={
+                    <Text fw={500}>
+                      <IconRefresh size={16} style={{ marginRight: 8 }} />
+                      Actualizar toda la información del producto
+                    </Text>
+                  }
+                  checked={importOptions.updateExisting}
+                  onChange={(e) =>
+                    setImportOptions({
+                      ...importOptions,
+                      updateExisting: e.currentTarget.checked,
+                      sumStock: e.currentTarget.checked ? false : importOptions.sumStock,
+                      skipDuplicates: false,
+                    })
+                  }
+                  mb="sm"
+                  size="md"
+                />
+                <Text color="dimmed" size="sm" ml={28} mb="md">
+                  Reemplazará todos los campos (descripción, precios, stock) con los valores del archivo
+                </Text>
+
+                <Checkbox
+                  label={
+                    <Text fw={500}>
+                      <IconArrowsJoin2 size={16} style={{ marginRight: 8 }} />
+                      Sumar solo al stock existente
+                    </Text>
+                  }
+                  checked={importOptions.sumStock}
+                  onChange={(e) =>
+                    setImportOptions({
+                      ...importOptions,
+                      sumStock: e.currentTarget.checked,
+                      updateExisting: e.currentTarget.checked ? false : importOptions.updateExisting,
+                      skipDuplicates: false,
+                    })
+                  }
+                  mb="sm"
+                  size="md"
+                />
+                <Text color="dimmed" size="sm" ml={28} mb="md">
+                  Mantendrá la información actual y solo sumará las cantidades de stock
+                </Text>
+
+                <Checkbox
+                  label={
+                    <Text fw={500}>
+                      <IconX size={16} style={{ marginRight: 8 }} />
+                      Omitir productos duplicados
+                    </Text>
+                  }
+                  checked={importOptions.skipDuplicates}
+                  onChange={(e) =>
+                    setImportOptions({
+                      ...importOptions,
+                      skipDuplicates: e.currentTarget.checked,
+                      updateExisting: false,
+                      sumStock: false,
+                    })
+                  }
+                  size="md"
+                />
+                <Text color="dimmed" size="sm" ml={28}>
+                  No realizará cambios en los productos existentes
+                </Text>
+              </Box>
+
+              <Box>
+                <Text fw={500} mb="sm">
+                  Productos duplicados encontrados:
+                </Text>
+                <ScrollArea style={{ maxHeight: 300 }}>
+                  {duplicatesList.map((item, index) => (
+                    <Alert key={index} mb="xs" color="yellow" variant="outline" icon={<IconInfoCircle size={18} />}>
+                      <Text size="sm" fw={600}>
+                        {item.Codigo} - {item.Descripcion}
+                      </Text>
+                      <Group spacing="xl" mt="xs">
+                        <Box>
+                          <Text size="xs">
+                            <strong>Stock:</strong> {item.existingStock} → {item.Stock} (
+                            {item.existingStock + item.Stock})
+                          </Text>
+                          <Text size="xs">
+                            <strong>P. Compra:</strong> ${item.existingPrecioCompra} → ${item.PrecioCompra}
+                          </Text>
+                          <Text size="xs">
+                            <strong>P. Venta:</strong> ${item.existingPrecioVenta} → ${item.PrecioVenta}
+                          </Text>
+                        </Box>
+                      </Group>
+                    </Alert>
+                  ))}
+                </ScrollArea>
+              </Box>
+
+              <Group position="right" mt="xl">
+                <Button variant="default" onClick={() => setImportModalOpen(false)} leftIcon={<IconX size={18} />}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleConfirmImport}
+                  loading={importing}
+                  leftIcon={<IconCheck size={18} />}
+                  color="green"
+                >
+                  Confirmar Importación
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
         </>
       ) : (
         <Outlet />
