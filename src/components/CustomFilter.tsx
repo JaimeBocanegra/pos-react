@@ -1,83 +1,103 @@
-import {
-    IAfterGuiAttachedParams,
-    IDoesFilterPassParams,
-  } from "@ag-grid-community/core";
-  import { CustomFilterProps, useGridFilter } from "@ag-grid-community/react";
-  import React, { ChangeEvent, useCallback, useEffect, useState } from "react";
-  
-  export const CustomFilter = ({
-    model,
-    onModelChange,
-    getValue,
-    options,
-  }: CustomFilterProps & { options: string[] }) => {
-    const [closeFilter, setCloseFilter] = useState<(() => void) | undefined>();
-    const [unappliedModel, setUnappliedModel] = useState(model);
-  
-    const doesFilterPass = useCallback(
-        (params: IDoesFilterPassParams) => {
-            const { node } = params; 
-            const filterText: string = model;
-            const value: string = getValue(node).toString().toLowerCase();
-            console.log(value);
-            // make sure each word passes separately, ie search for firstname, lastname
-            return filterText
-                .toLowerCase()
-                .split(' ')
-                .every((filterWord) => value.indexOf(filterWord) >= 0);
-        },
-        [model]
-      );
-  
-    const afterGuiAttached = useCallback(
-      ({ hidePopup }: IAfterGuiAttachedParams) => {
-        setCloseFilter(() => hidePopup);
-      },
-      []
-    );
-  
-    // register filter handlers with the grid
-    useGridFilter({
-      doesFilterPass,
-      afterGuiAttached,
-    });
-  
-    useEffect(() => {
-      setUnappliedModel(model);
-      console.log(model);
-    }, [model]);
-  
-    const onYearChange = ({
-      target: { value },
-    }: ChangeEvent<HTMLSelectElement>) => {
-      setUnappliedModel(value === "All" ? null : value);
-    };
-  
-    const onClick = () => {
-        if (unappliedModel !== undefined) {
-          onModelChange(unappliedModel);
-        } else {
-          onModelChange(null); // Si no hay filtro seleccionado, limpia el filtro
-        }
-      
-        if (closeFilter) {
-          closeFilter();
-        }
-      };
-  
-    return (
-      <div className="year-filter">
-        <div>Select Year Range</div>
-        <select onChange={({ target: { value } }) => onModelChange(value === '' ? null : value)} value={unappliedModel || ""}>
-          <option value="All">--Select--</option>
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <button onClick={onClick}>Apply</button>
-      </div>
-    );
+'use client'
+
+import React, { useState, useImperativeHandle, forwardRef, useEffect, useRef } from 'react';
+import { MultiSelect } from '@mantine/core';
+
+interface CustomMultiFilterProps {
+  colDef: {
+    field: string;
   };
-  
+  options: string[];
+  filterChangedCallback?: () => void;
+}
+
+const CustomMultiFilter = forwardRef((p: CustomMultiFilterProps, ref) => {
+  const { field } = p.colDef;
+  const [selectedValues, setSelectedValues] = useState<string[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [containerHeight, setContainerHeight] = useState(80);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  const options = p.options.map((option: string) => ({ value: option, label: option }));
+
+  useEffect(() => {
+    // Only call if the callback exists
+    p.filterChangedCallback?.();
+  }, [selectedValues]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (filterRef.current) {
+      const inputElement = filterRef.current.querySelector('div');
+      if (inputElement) {
+        const divpillsheight = inputElement.offsetHeight;
+        const baseHeight = divpillsheight === 0 ? 70 : divpillsheight + 30;
+        const additionalHeight = isOpen ? 80 : 0;
+        setContainerHeight(baseHeight + additionalHeight);
+      }
+    }
+  }, [isOpen, selectedValues]);
+
+  useImperativeHandle(ref, () => ({
+    isFilterActive: () => {
+      return selectedValues.length > 0;
+    },
+    doesFilterPass: (params: any) => {
+      if (selectedValues.length === 0) return true;
+      return selectedValues.some(value => 
+        params.data[field].toLowerCase().includes(value.toLowerCase())
+      );
+    },
+    getModel: () => {
+      return selectedValues.length > 0 ? { values: selectedValues } : null;
+    },
+    setModel: (model: any) => {
+      setSelectedValues(model ? model.values : []);
+    },
+    resetFilter: () => {
+      setSelectedValues([]);
+    }
+  }));
+
+  return (
+    <div 
+      ref={filterRef}
+      style={{ 
+        padding: 6, 
+        height: containerHeight,
+        width: '200px', 
+        display: 'flex', 
+        flexDirection: 'column',
+        transition: 'height 0.3s ease'
+      }}
+    >
+      <MultiSelect
+        label={`Filtro ${field}`}
+        data={options}
+        value={selectedValues}
+        dropdownPosition="bottom"
+        onChange={setSelectedValues}
+        placeholder="Seleccionar valores"
+        searchable
+        maxDropdownHeight={85}
+        clearable
+        onDropdownClose={() => setIsOpen(false)}
+        onDropdownOpen={() => setIsOpen(true)}
+      />
+    </div>
+  );
+});
+
+export default CustomMultiFilter;

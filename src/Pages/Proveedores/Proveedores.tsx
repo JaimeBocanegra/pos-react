@@ -6,7 +6,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { obtenerProveedores, eliminarProveedor } from "../services/ProveedorService";
-import { CustomFilter } from '../../components/CustomFilter';
+import CustomMultiFilter from '../../components/CustomFilter';
 
 export function Proveedores() {
   const [gridApi, setGridApi] = useState<any | null>(null);
@@ -77,10 +77,6 @@ export function Proveedores() {
       field: "nombre",
       flex: 1,
       minWidth: 200,
-      filter: CustomFilter,
-      filterParams: {
-        options: uniqueNames,
-      },
       cellStyle: {
         lineHeight: "1.2",
         alignItems: "center",

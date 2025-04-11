@@ -13,14 +13,13 @@ import {
   TextInput,
   Tooltip,
   Grid,
+  Select,
 } from "@mantine/core"
 import {
   IconPlus,
-  IconTrash,
   IconEye,
   IconSearch,
   IconShoppingBag,
-  IconCalendar,
   IconReceipt,
   IconUser,
   IconBan,
@@ -30,12 +29,14 @@ import {
   IconCash,
   IconClock,
   IconEdit,
+  IconChevronDown,
+  IconChevronUp,
+  IconFilterOff,
 } from "@tabler/icons-react"
 import DataTable from "../../components/DataTable"
 import { useEffect, useState, useMemo } from "react"
 import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import Swal from "sweetalert2"
-import { CustomFilter } from "../../components/CustomFilter"
 import { obtenerVentas, cancelarVenta } from "../services/VentaService"
 import { DatePicker, type DatePickerValue } from "@mantine/dates"
 
@@ -60,7 +61,6 @@ const FechaRenderer = (props: any) => {
   )
 }
 
-// Componente para renderizar estado
 // Componente para renderizar estado
 const EstadoRenderer = (props: any) => {
   switch (props.value) {
@@ -104,6 +104,8 @@ export function Ventas() {
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<[DatePickerValue, DatePickerValue]>([null, null])
   const [showDateFilter, setShowDateFilter] = useState(false)
+  const [showDetailCards, setShowDetailCards] = useState(false)
+  const [estadoFilter, setEstadoFilter] = useState<string | null>("todas")
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -128,9 +130,19 @@ export function Ventas() {
     cargarVentas()
   }, [location])
 
-  // Filtrar por fecha y término de búsqueda
+  // Filtrar por fecha, estado y término de búsqueda
   const filteredData = useMemo(() => {
     let filtered = ventas
+
+    // Filtrar por estado si se ha seleccionado un estado específico
+    if (estadoFilter && estadoFilter !== "todas") {
+      filtered = filtered.filter((venta) => {
+        if (estadoFilter === "completadas") return venta.Estatus !== "CANCELADO" && venta.Estatus !== "PENDIENTE"
+        if (estadoFilter === "pendientes") return venta.Estatus === "PENDIENTE"
+        if (estadoFilter === "canceladas") return venta.Estatus === "CANCELADO"
+        return true
+      })
+    }
 
     // Filtrar por rango de fechas si ambas fechas están seleccionadas
     if (dateRange[0] && dateRange[1]) {
@@ -149,34 +161,126 @@ export function Ventas() {
 
     // Filtrar por término de búsqueda
     if (searchTerm) {
-      filtered = filtered.filter(
-        (venta) =>
-          venta.NumeroDocumento?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          false ||
-          venta.NombreCliente?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          false,
-      )
+      const searchLower = searchTerm.toLowerCase().trim()
+
+      filtered = filtered.filter((venta) => {
+        // Buscar en campos de texto
+        if (
+          venta.NumeroDocumento?.toString().toLowerCase().includes(searchLower) ||
+          venta.NombreCliente?.toString().toLowerCase().includes(searchLower) ||
+          venta.IdVenta?.toString().toLowerCase().includes(searchLower)
+        ) {
+          return true
+        }
+
+        // Buscar por estado
+        if (
+          (searchLower === "completada" || searchLower === "completado") &&
+          venta.Estatus !== "CANCELADO" &&
+          venta.Estatus !== "PENDIENTE"
+        ) {
+          return true
+        }
+        if (searchLower === "pendiente" && venta.Estatus === "PENDIENTE") {
+          return true
+        }
+        if ((searchLower === "cancelada" || searchLower === "cancelado") && venta.Estatus === "CANCELADO") {
+          return true
+        }
+
+        // Buscar por método de pago
+        if (
+          (searchLower === "efectivo" && venta.TPago === "EFECTIVO") ||
+          (searchLower === "tarjeta" && venta.TPago === "TARJETA")
+        ) {
+          return true
+        }
+
+        // Buscar por monto
+        const montoStr = venta.MontoTotal?.toString() || ""
+        if (montoStr.includes(searchTerm)) {
+          return true
+        }
+
+        // Buscar por rangos de monto (formato: >100, <50, etc.)
+        if (searchTerm.startsWith(">") || searchTerm.startsWith("<")) {
+          const operator = searchTerm.charAt(0)
+          const value = Number.parseFloat(searchTerm.substring(1))
+
+          if (!isNaN(value)) {
+            const montoTotal = Number.parseFloat(venta.MontoTotal) || 0
+
+            if (operator === ">") {
+              return montoTotal > value
+            } else if (operator === "<") {
+              return montoTotal < value
+            }
+          }
+        }
+
+        // Buscar por fecha
+        if (!venta.FechaRegistro) return false
+
+        const fechaVenta = new Date(venta.FechaRegistro)
+        const dia = fechaVenta.getDate().toString().padStart(2, "0")
+        const mes = (fechaVenta.getMonth() + 1).toString().padStart(2, "0")
+        const año = fechaVenta.getFullYear()
+        const fechaFormateada = `${dia}/${mes}/${año}`
+
+        if (fechaFormateada.includes(searchTerm)) {
+          return true
+        }
+
+        // Buscar por año o mes específico
+        if (año.toString() === searchTerm || mes === searchTerm || dia === searchTerm) {
+          return true
+        }
+
+        return false
+      })
     }
 
     return filtered
-  }, [ventas, searchTerm, dateRange])
+  }, [ventas, searchTerm, dateRange, estadoFilter])
 
-  // Calculamos los montos separados por estado basados en los datos filtrados
-  const { montoCompletadas, montoCanceladas, totalVentas, ventasCompletadas, ventasCanceladas } = useMemo(() => {
+  // Calculamos los montos y cantidades separados por estado
+  const {
+    montoCompletadas,
+    montoCanceladas,
+    montoPendientes,
+    totalVentas,
+    ventasCompletadas,
+    ventasCanceladas,
+    ventasPendientes,
+  } = useMemo(() => {
     return filteredData.reduce(
       (acc, venta) => {
         const monto = Number.parseFloat(venta.MontoTotal || 0)
-        if (venta.Estatus !== "CANCELADO") {
-          acc.montoCompletadas += monto
-          acc.ventasCompletadas++
-        } else {
+
+        if (venta.Estatus === "CANCELADO") {
           acc.montoCanceladas += monto
           acc.ventasCanceladas++
+        } else if (venta.Estatus === "PENDIENTE") {
+          acc.montoPendientes += monto
+          acc.ventasPendientes++
+        } else {
+          // Completadas (cualquier otro estado)
+          acc.montoCompletadas += monto
+          acc.ventasCompletadas++
         }
+
         acc.totalVentas++
         return acc
       },
-      { montoCompletadas: 0, montoCanceladas: 0, totalVentas: 0, ventasCompletadas: 0, ventasCanceladas: 0 },
+      {
+        montoCompletadas: 0,
+        montoCanceladas: 0,
+        montoPendientes: 0,
+        totalVentas: 0,
+        ventasCompletadas: 0,
+        ventasCanceladas: 0,
+        ventasPendientes: 0,
+      },
     )
   }, [filteredData])
 
@@ -219,6 +323,7 @@ export function Ventas() {
   const resetFilters = () => {
     setDateRange([null, null])
     setSearchTerm("")
+    setEstadoFilter("todas")
   }
 
   // Función de filtro personalizada para manejar valores undefined o null
@@ -226,6 +331,7 @@ export function Ventas() {
     if (value === undefined || value === null) return false
     return String(value).toLowerCase().includes(filterText.toLowerCase())
   }
+  const uniqueNames = useMemo(() => Array.from(new Set(filteredData.map((row) => row.Estatus))), [filteredData])
 
   const columnDefs = [
     {
@@ -233,10 +339,6 @@ export function Ventas() {
       field: "IdVenta",
       flex: 0.7,
       minWidth: 90,
-      filter: CustomFilter,
-      filterParams: {
-        filterFunction: safeFilter,
-      },
       cellStyle: {
         fontWeight: 500,
       },
@@ -246,10 +348,6 @@ export function Ventas() {
       field: "Estatus",
       flex: 0.8,
       minWidth: 120,
-      filter: CustomFilter,
-      filterParams: {
-        filterFunction: safeFilter,
-      },
       cellRenderer: EstadoRenderer,
     },
     {
@@ -257,10 +355,6 @@ export function Ventas() {
       field: "NumeroDocumento",
       flex: 1,
       minWidth: 150,
-      filter: CustomFilter,
-      filterParams: {
-        filterFunction: safeFilter,
-      },
       cellStyle: {
         fontWeight: 500,
         display: "flex",
@@ -278,10 +372,6 @@ export function Ventas() {
       field: "FechaRegistro",
       flex: 1,
       minWidth: 110,
-      filter: CustomFilter,
-      filterParams: {
-        filterFunction: safeFilter,
-      },
       cellRenderer: FechaRenderer,
     },
     {
@@ -289,10 +379,6 @@ export function Ventas() {
       field: "NombreCliente",
       flex: 2,
       minWidth: 180,
-      filter: CustomFilter,
-      filterParams: {
-        filterFunction: safeFilter,
-      },
       cellStyle: {
         lineHeight: "1.2",
         display: "flex",
@@ -312,10 +398,6 @@ export function Ventas() {
       field: "TPago",
       flex: 1,
       minWidth: 130,
-      filter: CustomFilter,
-      filterParams: {
-        filterFunction: safeFilter,
-      },
       cellRenderer: MetodoPagoRenderer,
     },
     {
@@ -323,10 +405,6 @@ export function Ventas() {
       field: "MontoTotal",
       flex: 1,
       minWidth: 130,
-      filter: CustomFilter,
-      filterParams: {
-        filterFunction: safeFilter,
-      },
       cellStyle: {
         fontWeight: 600,
         color: "#228be6",
@@ -358,7 +436,7 @@ export function Ventas() {
               <IconEye size="1rem" />
             </ActionIcon>
           </Tooltip>
-    
+
           {params.data.Estatus === "PENDIENTE" && (
             <Tooltip label="Continuar venta">
               <ActionIcon
@@ -372,22 +450,6 @@ export function Ventas() {
               </ActionIcon>
             </Tooltip>
           )}
-    
-          <Tooltip label={params.data.Estatus !== "CANCELADO" ? "Cancelar venta" : "Venta ya cancelada"}>
-            <div>
-              <ActionIcon
-                variant="light"
-                color="red"
-                onClick={() => handleCancelarVenta(params.data)}
-                radius="md"
-                size="lg"
-                disabled={params.data.Estatus === "CANCELADO"}
-                sx={{ opacity: params.data.Estatus !== "CANCELADO" ? 1 : 0.5 }}
-              >
-                <IconTrash size="1rem" />
-              </ActionIcon>
-            </div>
-          </Tooltip>
         </Flex>
       ),
       cellStyle: {
@@ -400,154 +462,320 @@ export function Ventas() {
   ]
 
   return (
-    <Paper shadow="xs" p="md" radius="md" w="100%" h="100%" sx={{ backgroundColor: "white" }}>
-      {location.pathname === "/ventas" ? (
-        <>
-          <Flex w="100%" justify="space-between" align="center" mb="md" wrap="wrap" gap="sm">
-            <Group spacing="xs">
-              <IconShoppingBag size={24} color="#228be6" />
-              <Title order={2} sx={{ fontSize: "calc(1.2rem + 0.5vw)" }}>
-                Gestión de Ventas
-              </Title>
-              <Badge color="blue" size="lg" variant="light">
-                {filteredData.length} registros
-              </Badge>
-            </Group>
-            <Group>
-              <TextInput
-                placeholder="Buscar venta..."
-                icon={<IconSearch size={16} />}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.currentTarget.value)}
-                sx={{ minWidth: "200px" }}
-                radius="md"
-              />
-              <Button
-                variant={showDateFilter ? "filled" : "light"}
-                color="blue"
-                leftIcon={<IconFilter size={16} />}
-                onClick={() => setShowDateFilter(!showDateFilter)}
-                radius="md"
-              >
-                Filtrar por Fecha
-              </Button>
-              <Button
-                variant="filled"
-                color="blue"
-                leftIcon={<IconPlus size={16} />}
-                onClick={() => navigate("nueva")}
-                radius="md"
-              >
-                Nueva Venta
-              </Button>
-            </Group>
-          </Flex>
-
-          {/* Filtro de fechas */}
-          {showDateFilter && (
-            <Paper p="md" radius="md" withBorder mb="md">
-              <Group position="apart" mb="xs">
-                <Text weight={600}>Filtrar por rango de fechas</Text>
-                <Button variant="subtle" color="gray" compact onClick={resetFilters}>
-                  Limpiar filtros
+    <>
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+      <Paper shadow="xs" p="md" radius="md" w="100%" h="100%" sx={{ backgroundColor: "white" }}>
+        {location.pathname === "/ventas" ? (
+          <>
+            <Flex w="100%" justify="space-between" align="center" mb="md" wrap="wrap" gap="sm">
+              <Group spacing="xs">
+                <IconShoppingBag size={24} color="#228be6" />
+                <Title order={2} sx={{ fontSize: "calc(1.2rem + 0.5vw)" }}>
+                  Gestión de Ventas
+                </Title>
+                <Badge color="blue" size="lg" variant="light">
+                  {filteredData.length} registros
+                </Badge>
+              </Group>
+              <Group>
+                <TextInput
+                  placeholder="Buscar venta..."
+                  icon={<IconSearch size={16} />}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.currentTarget.value)}
+                  sx={{ minWidth: "200px" }}
+                  radius="md"
+                />
+                <Select
+                  placeholder="Estado"
+                  value={estadoFilter}
+                  onChange={setEstadoFilter}
+                  data={[
+                    { value: "todas", label: "Todas" },
+                    { value: "completadas", label: "Completadas" },
+                    { value: "pendientes", label: "Pendientes" },
+                    { value: "canceladas", label: "Canceladas" },
+                  ]}
+                  icon={
+                    estadoFilter === "completadas" ? (
+                      <IconCheck size={16} color="green" />
+                    ) : estadoFilter === "pendientes" ? (
+                      <IconClock size={16} color="#FFB800" />
+                    ) : estadoFilter === "canceladas" ? (
+                      <IconBan size={16} color="red" />
+                    ) : null
+                  }
+                  sx={{ minWidth: "150px" }}
+                  radius="md"
+                />
+                <Button
+                  variant={showDateFilter ? "filled" : "light"}
+                  color="blue"
+                  leftIcon={<IconFilter size={16} />}
+                  onClick={() => setShowDateFilter(!showDateFilter)}
+                  radius="md"
+                >
+                  Filtrar por Fecha
+                </Button>
+                <Button
+                  variant="filled"
+                  color="blue"
+                  leftIcon={<IconPlus size={16} />}
+                  onClick={() => navigate("nueva")}
+                  radius="md"
+                >
+                  Nueva Venta
                 </Button>
               </Group>
-              <Group mb="md" grow>
-                <DatePicker
-                  value={dateRange[0]}
-                  onChange={(date) => setDateRange([date, dateRange[1]])}
-                  w="100%"
-                />
-                <DatePicker
-                  value={dateRange[1]}
-                  onChange={(date) => setDateRange([dateRange[0], date])}
-                  w="100%"
-                />
-              </Group>
-              <Text size="xs" color="dimmed">
-                {dateRange[0] && dateRange[1]
-                  ? `Mostrando ventas del ${dateRange[0].toLocaleDateString()} al ${dateRange[1].toLocaleDateString()}`
-                  : "Mostrando todas las ventas"}
-              </Text>
-            </Paper>
-          )}
+            </Flex>
 
-          {/* Stats Cards */}
-          <Grid mb="md" gutter="md">
-            <Grid.Col span={4}>
-              <Paper p="md" radius="md" withBorder h="100%">
-                <Group position="apart">
-                  <div>
-                    <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
-                      Total Ventas
-                    </Text>
-                    <Text weight={700} size="xl">
-                      {totalVentas}
-                    </Text>
-                    <Text size="sm" color="dimmed">
-                      {ventasCompletadas} completadas
-                    </Text>
-                    <Text size="sm" color="dimmed">
-                      {ventasCanceladas} canceladas
-                    </Text>
-                  </div>
-                  <IconShoppingBag size={32} color="#228be6" />
+            {/* Filtro de fechas */}
+            {showDateFilter && (
+              <Paper p="md" radius="md" withBorder mb="md">
+                <Group position="apart" mb="xs">
+                  <Text weight={600}>Filtrar por rango de fechas</Text>
+                  <Button
+                    variant="subtle"
+                    color="gray"
+                    compact
+                    onClick={resetFilters}
+                    leftIcon={<IconFilterOff size={16} />}
+                  >
+                    Limpiar filtros
+                  </Button>
                 </Group>
-              </Paper>
-            </Grid.Col>
-
-            <Grid.Col span={4}>
-              <Paper p="md" radius="md" withBorder h="100%">
-                <Group position="apart">
-                  <div>
-                    <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
-                      Monto Total Completadas
-                    </Text>
-                    <Text weight={700} size="xl" color="green">
-                      $ {montoCompletadas.toFixed(2)} MXN
-                    </Text>
-                    <Text size="sm" color="dimmed">
-                      {ventasCompletadas} ventas
-                    </Text>
-                  </div>
-                  <IconCheck size={32} color="green" />
+                <Group mb="md" grow>
+                  <DatePicker value={dateRange[0]} onChange={(date) => setDateRange([date, dateRange[1]])} w="100%" />
+                  <DatePicker value={dateRange[1]} onChange={(date) => setDateRange([dateRange[0], date])} w="100%" />
                 </Group>
+                <Text size="xs" color="dimmed">
+                  {dateRange[0] && dateRange[1]
+                    ? `Mostrando ventas del ${dateRange[0].toLocaleDateString()} al ${dateRange[1].toLocaleDateString()}`
+                    : "Mostrando todas las ventas"}
+                </Text>
               </Paper>
-            </Grid.Col>
+            )}
 
-            <Grid.Col span={4}>
-              <Paper p="md" radius="md" withBorder h="100%">
-                <Group position="apart">
-                  <div>
-                    <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
-                      Monto Total Canceladas
-                    </Text>
-                    <Text weight={700} size="xl" color="red">
-                      $ {montoCanceladas.toFixed(2)} MXN
-                    </Text>
-                    <Text size="sm" color="dimmed">
-                      {ventasCanceladas} ventas
-                    </Text>
-                  </div>
-                  <IconBan size={32} color="red" />
-                </Group>
-              </Paper>
-            </Grid.Col>
-          </Grid>
+            {/* Stats Cards - Primera fila: Resumen general */}
+            <Text weight={600} mb="xs">
+              Resumen General
+            </Text>
+            <Grid mb="md" gutter="md">
+              <Grid.Col span={4}>
+                <Paper p="md" radius="md" withBorder h="100%">
+                  <Group position="apart">
+                    <div>
+                      <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
+                        Total Ventas
+                      </Text>
+                      <Text weight={700} size="xl">
+                        {totalVentas}
+                      </Text>
+                      <Text size="sm" color="dimmed">
+                        {ventasCompletadas} completadas
+                      </Text>
+                      <Text size="sm" color="dimmed">
+                        {ventasPendientes} pendientes
+                      </Text>
+                      <Text size="sm" color="dimmed">
+                        {ventasCanceladas} canceladas
+                      </Text>
+                    </div>
+                    <IconShoppingBag size={32} color="#228be6" />
+                  </Group>
+                </Paper>
+              </Grid.Col>
 
-          <Box sx={{ height: "calc(100% - 160px)" }}>
-            <DataTable
-              rowData={filteredData}
-              columnDefs={columnDefs}
-              onGridReady={onGridReady}
-              rowsPerPage={10}
-              pagination={true}
-            />
-          </Box>
-        </>
-      ) : (
-        <Outlet />
-      )}
-    </Paper>
+              <Grid.Col span={4}>
+                <Paper p="md" radius="md" withBorder h="100%">
+                  <Group position="apart">
+                    <div>
+                      <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
+                        Monto Total Completadas
+                      </Text>
+                      <Text weight={700} size="xl" color="green">
+                        $ {montoCompletadas.toFixed(2)} MXN
+                      </Text>
+                      <Text size="sm" color="dimmed">
+                        {ventasCompletadas} ventas
+                      </Text>
+                    </div>
+                    <IconCheck size={32} color="green" />
+                  </Group>
+                </Paper>
+              </Grid.Col>
+
+              <Grid.Col span={4}>
+                <Paper p="md" radius="md" withBorder h="100%">
+                  <Group position="apart">
+                    <div>
+                      <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
+                        Monto Total Canceladas
+                      </Text>
+                      <Text weight={700} size="xl" color="red">
+                        $ {montoCanceladas.toFixed(2)} MXN
+                      </Text>
+                      <Text size="sm" color="dimmed">
+                        {ventasCanceladas} ventas
+                      </Text>
+                    </div>
+                    <IconBan size={32} color="red" />
+                  </Group>
+                </Paper>
+              </Grid.Col>
+            </Grid>
+
+            {/* Stats Cards - Segunda fila: Detalle por estado */}
+            <Group position="apart" mb="xs" mt="md">
+              <Text weight={600}>Detalle por Estado</Text>
+              <Button
+                variant="subtle"
+                color="gray"
+                compact
+                onClick={() => setShowDetailCards(!showDetailCards)}
+                rightIcon={showDetailCards ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+              >
+                {showDetailCards ? "Ocultar detalles" : "Mostrar detalles"}
+              </Button>
+            </Group>
+
+            {showDetailCards && (
+              <Grid
+                mb="md"
+                gutter="md"
+                style={{
+                  animation: "fadeIn 0.3s ease-in-out",
+                }}
+              >
+                <Grid.Col span={4}>
+                  <Paper p="md" radius="md" withBorder h="100%" sx={{ borderLeft: "4px solid green" }}>
+                    <Group position="apart">
+                      <div>
+                        <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
+                          Ventas Completadas
+                        </Text>
+                        <Text weight={700} size="xl" color="green">
+                          {ventasCompletadas}
+                        </Text>
+                        <Text size="sm" color="green" weight={500}>
+                          $ {montoCompletadas.toFixed(2)} MXN
+                        </Text>
+                        <Text size="xs" color="dimmed">
+                          {ventasCompletadas > 0
+                            ? `Promedio: $ ${(montoCompletadas / ventasCompletadas).toFixed(2)} MXN`
+                            : "Sin ventas completadas"}
+                        </Text>
+                      </div>
+                      <Box
+                        sx={{
+                          backgroundColor: "rgba(0, 128, 0, 0.1)",
+                          borderRadius: "50%",
+                          width: "50px",
+                          height: "50px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <IconCheck size={28} color="green" />
+                      </Box>
+                    </Group>
+                  </Paper>
+                </Grid.Col>
+
+                <Grid.Col span={4}>
+                  <Paper p="md" radius="md" withBorder h="100%" sx={{ borderLeft: "4px solid #FFB800" }}>
+                    <Group position="apart">
+                      <div>
+                        <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
+                          Ventas Pendientes
+                        </Text>
+                        <Text weight={700} size="xl" color="#FFB800">
+                          {ventasPendientes}
+                        </Text>
+                        <Text size="sm" color="#FFB800" weight={500}>
+                          $ {montoPendientes.toFixed(2)} MXN
+                        </Text>
+                        <Text size="xs" color="dimmed">
+                          {ventasPendientes > 0
+                            ? `Promedio: $ ${(montoPendientes / ventasPendientes).toFixed(2)} MXN`
+                            : "Sin ventas pendientes"}
+                        </Text>
+                      </div>
+                      <Box
+                        sx={{
+                          backgroundColor: "rgba(255, 184, 0, 0.1)",
+                          borderRadius: "50%",
+                          width: "50px",
+                          height: "50px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <IconClock size={28} color="#FFB800" />
+                      </Box>
+                    </Group>
+                  </Paper>
+                </Grid.Col>
+
+                <Grid.Col span={4}>
+                  <Paper p="md" radius="md" withBorder h="100%" sx={{ borderLeft: "4px solid red" }}>
+                    <Group position="apart">
+                      <div>
+                        <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
+                          Ventas Canceladas
+                        </Text>
+                        <Text weight={700} size="xl" color="red">
+                          {ventasCanceladas}
+                        </Text>
+                        <Text size="sm" color="red" weight={500}>
+                          $ {montoCanceladas.toFixed(2)} MXN
+                        </Text>
+                        <Text size="xs" color="dimmed">
+                          {ventasCanceladas > 0
+                            ? `Promedio: $ ${(montoCanceladas / ventasCanceladas).toFixed(2)} MXN`
+                            : "Sin ventas canceladas"}
+                        </Text>
+                      </div>
+                      <Box
+                        sx={{
+                          backgroundColor: "rgba(255, 0, 0, 0.1)",
+                          borderRadius: "50%",
+                          width: "50px",
+                          height: "50px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <IconBan size={28} color="red" />
+                      </Box>
+                    </Group>
+                  </Paper>
+                </Grid.Col>
+              </Grid>
+            )}
+
+            <Box sx={{ height: "calc(100% - 320px)" }}>
+              <DataTable
+                rowData={filteredData}
+                columnDefs={columnDefs}
+                onGridReady={onGridReady}
+                rowsPerPage={10}
+                pagination={true}
+              />
+            </Box>
+          </>
+        ) : (
+          <Outlet />
+        )}
+      </Paper>
+    </>
   )
 }

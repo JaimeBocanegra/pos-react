@@ -6,7 +6,6 @@ import { useEffect, useState, useMemo } from "react"
 import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import { Configuracion, ConfiguracionService } from "../services/ConfiguracionService"
 import DataTable from "../../components/DataTable"
-import { CustomFilter } from "../../components/CustomFilter"
 
 export default function Configuraciones() {
   const [gridApi, setGridApi] = useState<any | null>(null)
@@ -105,7 +104,6 @@ export default function Configuraciones() {
       field: "clave",
       flex: 1.5,
       minWidth: 150,
-      filter: CustomFilter,
       cellStyle: { display: "flex", alignItems: "center", fontWeight: 500 },
       cellRenderer: (params: any) => (
         <Group spacing={4} noWrap>
@@ -121,7 +119,6 @@ export default function Configuraciones() {
       field: "descripcion",
       flex: 2,
       minWidth: 200,
-      filter: CustomFilter,
       cellStyle: { display: "flex", alignItems: "center" }
     },
     {

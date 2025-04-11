@@ -16,7 +16,6 @@ import { useEffect, useState, useMemo } from "react"
 import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import Swal from "sweetalert2"
 import { obtenerClientes, eliminarCliente } from "../services/ClienteService"
-import { CustomFilter } from "../../components/CustomFilter"
 
 export function Clientes() {
   const [gridApi, setGridApi] = useState<any | null>(null)
@@ -73,7 +72,32 @@ export function Clientes() {
       }))
 
     return clientes
-      .filter((cliente: any) => cliente.Nombre.toLowerCase().includes(searchTerm.toLowerCase()))
+      .filter((cliente: any) => {
+        const searchTermLower = searchTerm.toLowerCase()
+
+        // Filtrar por nombre
+        if (cliente.Nombre.toLowerCase().includes(searchTermLower)) return true
+
+        // Filtrar por valores booleanos
+        if (
+          searchTermLower === "true" ||
+          searchTermLower === "verdadero" ||
+          searchTermLower === "si" ||
+          searchTermLower === "sí"
+        ) {
+          return cliente.Iva || cliente.EmpleadoRequerido || cliente.RequiereNumeroEmpleado
+        }
+
+        if (searchTermLower === "false" || searchTermLower === "falso" || searchTermLower === "no") {
+          return !cliente.Iva || !cliente.EmpleadoRequerido || !cliente.RequiereNumeroEmpleado
+        }
+
+        // Filtrar por textos específicos que aparecen en los badges
+        if (searchTermLower === "activado") return cliente.Iva
+        if (searchTermLower === "requerido") return cliente.EmpleadoRequerido || cliente.RequiereNumeroEmpleado
+
+        return false
+      })
       .map((cliente: any) => ({
         idCliente: cliente.IdCliente,
         nombre: cliente.Nombre,
@@ -92,10 +116,6 @@ export function Clientes() {
       field: "nombre",
       flex: 1,
       minWidth: 200,
-      filter: CustomFilter,
-      filterParams: {
-        options: uniqueNames,
-      },
       cellStyle: {
         lineHeight: "1.2",
         alignItems: "center",
@@ -275,8 +295,6 @@ export function Clientes() {
                 <IconUsers size={32} color="#2b8a3e" />
               </Group>
             </Paper>
-
-            
           </Group>
 
           <DataTable

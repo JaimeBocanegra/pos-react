@@ -40,7 +40,6 @@ import { useEffect, useState, useMemo } from "react"
 import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import Swal from "sweetalert2"
 import { obtenerProductos, eliminarProducto, importarProductos } from "../services/ProductoService"
-import { CustomFilter } from "../../components/CustomFilter"
 import { ConfiguracionService } from "../services/ConfiguracionService"
 import * as XLSX from "xlsx"
 import { supabase } from "../../supabase/client"
@@ -142,14 +141,56 @@ export function Productos() {
   const filteredData = useMemo(() => {
     if (!productos || productos.length === 0) return []
 
+    if (!searchTerm) return productos
+
     const searchLower = searchTerm.toLowerCase()
-    return productos.filter(
-      (producto) =>
-        producto?.Codigo?.toLowerCase()?.includes(searchLower) ||
-        producto?.Descripcion?.toLowerCase()?.includes(searchLower) ||
-        producto?.Categoria?.toLowerCase()?.includes(searchLower),
-    )
-  }, [productos, searchTerm])
+
+    return productos.filter((producto) => {
+      // Buscar en campos de texto
+      if (
+        producto?.Codigo?.toString().toLowerCase().includes(searchLower) ||
+        producto?.Descripcion?.toLowerCase().includes(searchLower) ||
+        producto?.Categoria?.toLowerCase().includes(searchLower) ||
+        producto?.Medida?.toLowerCase().includes(searchLower)
+      ) {
+        return true
+      }
+
+      // Buscar en campos numéricos (precios y stock)
+      const precioCompra = producto?.PrecioCompra?.toString() || ""
+      const precioVenta = producto?.PrecioVenta?.toString() || ""
+      const stock = producto?.Stock?.toString() || ""
+
+      if (precioCompra.includes(searchTerm) || precioVenta.includes(searchTerm) || stock.includes(searchTerm)) {
+        return true
+      }
+
+      // Buscar por rangos de precio (formato: >100, <50, etc.)
+      if (searchTerm.startsWith(">") || searchTerm.startsWith("<")) {
+        const operator = searchTerm.charAt(0)
+        const value = Number.parseFloat(searchTerm.substring(1))
+
+        if (!isNaN(value)) {
+          const precioCompraNum = Number.parseFloat(producto?.PrecioCompra) || 0
+          const precioVentaNum = Number.parseFloat(producto?.PrecioVenta) || 0
+          const stockNum = Number.parseFloat(producto?.Stock) || 0
+
+          if (operator === ">") {
+            return precioCompraNum > value || precioVentaNum > value || stockNum > value
+          } else if (operator === "<") {
+            return precioCompraNum < value || precioVentaNum < value || stockNum < value
+          }
+        }
+      }
+
+      // Buscar por términos específicos
+      if (searchLower === "bajo stock" || searchLower === "stock bajo") {
+        return (Number(producto?.Stock) || 0) <= stockMinimo
+      }
+
+      return false
+    })
+  }, [productos, searchTerm, stockMinimo])
 
   // Configuración de columnas para la tabla
   const columnDefs = [
@@ -159,7 +200,6 @@ export function Productos() {
       field: "Codigo",
       flex: 1,
       minWidth: 100,
-      filter: CustomFilter,
       cellStyle: { display: "flex", alignItems: "center" },
     },
     {
@@ -167,7 +207,6 @@ export function Productos() {
       field: "Descripcion",
       flex: 2,
       minWidth: 180,
-      filter: CustomFilter,
       cellStyle: { display: "flex", alignItems: "center" },
     },
     {
@@ -175,7 +214,6 @@ export function Productos() {
       field: "Categoria",
       flex: 1.5,
       minWidth: 150,
-      filter: CustomFilter,
       cellStyle: {
         backgroundColor: "rgba(20, 184, 166, 0.1)",
         color: "rgb(20, 184, 166)",
@@ -190,7 +228,6 @@ export function Productos() {
       field: "Medida",
       flex: 1,
       minWidth: 100,
-      filter: CustomFilter,
       cellStyle: { display: "flex", alignItems: "center" },
     },
     {

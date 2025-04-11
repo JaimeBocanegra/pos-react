@@ -310,6 +310,10 @@ export function DetalleVenta() {
         direccion: empresa?.direccion || "Dirección de la empresa",
         telefono: empresa?.telefono || "123-456-7890",
       };
+      // Agregar marca de agua si está cancelada (antes del contenido para que quede detrás)
+      if (venta.Estatus === "CANCELADO") {
+        agregarMarcaDeAguaCancelado(doc);
+      }
 
       // Título
       doc.setFontSize(18);

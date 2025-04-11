@@ -13,6 +13,7 @@ import {
   TextInput,
   Tooltip,
   Grid,
+  Select,
 } from "@mantine/core"
 import {
   IconPlus,
@@ -26,12 +27,12 @@ import {
   IconBan,
   IconCheck,
   IconFilter,
+  IconFilterOff,
 } from "@tabler/icons-react"
 import DataTable from "../../components/DataTable"
 import { useEffect, useState, useMemo } from "react"
 import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import Swal from "sweetalert2"
-import { CustomFilter } from "../../components/CustomFilter"
 import { obtenerCompras, eliminarCompra } from "../services/CompraService"
 import { DatePicker, type DatePickerValue } from "@mantine/dates"
 
@@ -75,6 +76,7 @@ export function Compras() {
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<[DatePickerValue, DatePickerValue]>([null, null])
   const [showDateFilter, setShowDateFilter] = useState(false)
+  const [estadoFilter, setEstadoFilter] = useState<string | null>("todas")
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -99,9 +101,18 @@ export function Compras() {
     cargarCompras()
   }, [location])
 
-  // Filtrar por fecha y término de búsqueda
+  // Filtrar por fecha, estado y término de búsqueda
   const filteredData = useMemo(() => {
     let filtered = compras
+
+    // Filtrar por estado si se ha seleccionado un estado específico
+    if (estadoFilter && estadoFilter !== "todas") {
+      filtered = filtered.filter((compra) => {
+        if (estadoFilter === "activas") return Boolean(compra.Activo)
+        if (estadoFilter === "canceladas") return !Boolean(compra.Activo)
+        return true
+      })
+    }
 
     // Filtrar por rango de fechas si ambas fechas están seleccionadas
     if (dateRange[0] && dateRange[1]) {
@@ -119,15 +130,63 @@ export function Compras() {
 
     // Filtrar por término de búsqueda
     if (searchTerm) {
-      filtered = filtered.filter(
-        (compra) =>
-          compra.NumeroDocumento.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          compra.NombreProveedor.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
+      const searchLower = searchTerm.toLowerCase().trim()
+
+      filtered = filtered.filter((compra) => {
+        // Buscar en campos de texto
+        if (
+          compra.NumeroDocumento?.toString().toLowerCase().includes(searchLower) ||
+          compra.NombreProveedor?.toString().toLowerCase().includes(searchLower) ||
+          compra.IdCompra?.toString().toLowerCase().includes(searchLower)
+        ) {
+          return true
+        }
+
+        // Buscar por monto
+        const montoStr = compra.MontoTotal?.toString() || ""
+        if (montoStr.includes(searchTerm)) {
+          return true
+        }
+
+        // Buscar por rangos de monto (formato: >100, <50, etc.)
+        if (searchTerm.startsWith(">") || searchTerm.startsWith("<")) {
+          const operator = searchTerm.charAt(0)
+          const value = Number.parseFloat(searchTerm.substring(1))
+
+          if (!isNaN(value)) {
+            const montoTotal = Number.parseFloat(compra.MontoTotal) || 0
+
+            if (operator === ">") {
+              return montoTotal > value
+            } else if (operator === "<") {
+              return montoTotal < value
+            }
+          }
+        }
+
+        // Buscar por fecha
+        // Formato de fecha en el documento: DD/MM/YYYY
+        const fechaCompra = new Date(compra.FechaRegistro)
+        const dia = fechaCompra.getDate().toString().padStart(2, "0")
+        const mes = (fechaCompra.getMonth() + 1).toString().padStart(2, "0")
+        const año = fechaCompra.getFullYear()
+        const fechaFormateada = `${dia}/${mes}/${año}`
+
+        if (fechaFormateada.includes(searchTerm)) {
+          return true
+        }
+
+        // Buscar por año o mes específico
+        if (año.toString() === searchTerm || mes === searchTerm || dia === searchTerm) {
+          return true
+        }
+
+        return false
+      })
     }
 
     return filtered
-  }, [compras, searchTerm, dateRange])
+  }, [compras, searchTerm, dateRange, estadoFilter])
 
   // Calculamos los montos separados por estado basados en los datos filtrados
   const { montoActivas, montoCanceladas, totalCompras, comprasActivas, comprasCanceladas } = useMemo(() => {
@@ -187,6 +246,7 @@ export function Compras() {
   const resetFilters = () => {
     setDateRange([null, null])
     setSearchTerm("")
+    setEstadoFilter("todas")
   }
 
   const columnDefs = [
@@ -195,7 +255,6 @@ export function Compras() {
       field: "IdCompra",
       flex: 0.7,
       minWidth: 90,
-      filter: CustomFilter,
       cellStyle: {
         fontWeight: 500,
       },
@@ -205,7 +264,6 @@ export function Compras() {
       field: "Activo",
       flex: 0.8,
       minWidth: 120,
-      filter: CustomFilter,
       cellRenderer: EstadoRenderer,
     },
     {
@@ -213,7 +271,6 @@ export function Compras() {
       field: "NumeroDocumento",
       flex: 1,
       minWidth: 150,
-      filter: CustomFilter,
       cellStyle: {
         fontWeight: 500,
         display: "flex",
@@ -231,7 +288,6 @@ export function Compras() {
       field: "FechaRegistro",
       flex: 1,
       minWidth: 110,
-      filter: CustomFilter,
       cellRenderer: (params: any) => (
         <Flex align="center" gap="xs">
           <IconCalendar size={16} color="#228be6" />
@@ -244,7 +300,6 @@ export function Compras() {
       field: "NombreProveedor",
       flex: 2,
       minWidth: 180,
-      filter: CustomFilter,
       cellStyle: {
         lineHeight: "1.2",
         display: "flex",
@@ -264,7 +319,6 @@ export function Compras() {
       field: "MontoTotal",
       flex: 1,
       minWidth: 130,
-      filter: CustomFilter,
       cellStyle: {
         fontWeight: 600,
         color: "#228be6",
@@ -345,6 +399,25 @@ export function Compras() {
                 sx={{ minWidth: "200px" }}
                 radius="md"
               />
+              <Select
+                placeholder="Estado"
+                value={estadoFilter}
+                onChange={setEstadoFilter}
+                data={[
+                  { value: "todas", label: "Todas" },
+                  { value: "activas", label: "Activas" },
+                  { value: "canceladas", label: "Canceladas" },
+                ]}
+                icon={
+                  estadoFilter === "activas" ? (
+                    <IconCheck size={16} color="green" />
+                  ) : estadoFilter === "canceladas" ? (
+                    <IconBan size={16} color="red" />
+                  ) : null
+                }
+                sx={{ minWidth: "150px" }}
+                radius="md"
+              />
               <Button
                 variant={showDateFilter ? "filled" : "light"}
                 color="blue"
@@ -371,21 +444,19 @@ export function Compras() {
             <Paper p="md" radius="md" withBorder mb="md">
               <Group position="apart" mb="xs">
                 <Text weight={600}>Filtrar por rango de fechas</Text>
-                <Button variant="subtle" color="gray" compact onClick={resetFilters}>
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  compact
+                  onClick={resetFilters}
+                  leftIcon={<IconFilterOff size={16} />}
+                >
                   Limpiar filtros
                 </Button>
               </Group>
               <Group mb="md" grow>
-                <DatePicker
-                  value={dateRange[0]}
-                  onChange={(date) => setDateRange([date, dateRange[1]])}
-                  w="100%"
-                />
-                <DatePicker
-                  value={dateRange[1]}
-                  onChange={(date) => setDateRange([dateRange[0], date])}
-                  w="100%"
-                />
+                <DatePicker value={dateRange[0]} onChange={(date) => setDateRange([date, dateRange[1]])} w="100%" />
+                <DatePicker value={dateRange[1]} onChange={(date) => setDateRange([dateRange[0], date])} w="100%" />
               </Group>
               <Text size="xs" color="dimmed">
                 {dateRange[0] && dateRange[1]
