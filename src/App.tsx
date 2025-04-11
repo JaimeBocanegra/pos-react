@@ -1,29 +1,35 @@
-import "./App.css";
-import { MantineProvider } from "@mantine/core";
-import { Login } from "./Pages/Auth/Login";
-import { Route, Routes } from "react-router-dom";
-import { Inicio } from "./Pages/Home/Inicio";
-import { NotFound } from "./Pages/NotFound";
-import { Clientes } from "./Pages/Clientes/Clientes";
-import { Proveedores } from "./Pages/Proveedores/Proveedores";
-import { Productos } from "./Pages/Productos/Productos";
-import { Agregar as AgregarProducto } from "./Pages/Productos/Agregar";
-import { Editar as EditarProducto } from "./Pages/Productos/Editar";
-import { DetallesProducto } from "./Pages/Productos/DetallesProducto";
-import ProtectedRoute from "./Pages/ProtectedRoute";
-import { Agregar as AgregarCliente } from "./Pages/Clientes/Agregar";
-import { Agregar as AgregarProveedor } from "./Pages/Proveedores/Agregar";
-import { Editar as EditarCliente } from "./Pages/Clientes/Editar";
-import { Editar as EditarProveedor } from "./Pages/Proveedores/Editar";
-import { DetallesCliente } from "./Pages/Clientes/DetallesCliente";
-import { DetallesProveedor } from "./Pages/Proveedores/DetallesProveedor";
-import { Compras } from "./Pages/Compras/Compras";
-import { NuevaCompra } from "./Pages/Compras/NuevaCompra";
-import { DetalleCompra } from "./Pages/Compras/DetalleCompra";
+import "./App.css"
+import { MantineProvider } from "@mantine/core"
+import { Login } from "./Pages/Auth/Login"
+import { Route, Routes } from "react-router-dom"
+import { Inicio } from "./Pages/Home/Inicio"
+import { NotFound } from "./Pages/NotFound"
+import { Clientes } from "./Pages/Clientes/Clientes"
+import { Proveedores } from "./Pages/Proveedores/Proveedores"
+import { Productos } from "./Pages/Productos/Productos"
+import { Agregar as AgregarProducto } from "./Pages/Productos/Agregar"
+import { Editar as EditarProducto } from "./Pages/Productos/Editar"
+import { DetallesProducto } from "./Pages/Productos/DetallesProducto"
+import ProtectedRoute from "./Pages/ProtectedRoute"
+import { Agregar as AgregarCliente } from "./Pages/Clientes/Agregar"
+import { Agregar as AgregarProveedor } from "./Pages/Proveedores/Agregar"
+import { Editar as EditarCliente } from "./Pages/Clientes/Editar"
+import { Editar as EditarProveedor } from "./Pages/Proveedores/Editar"
+import { DetallesCliente } from "./Pages/Clientes/DetallesCliente"
+import { DetallesProveedor } from "./Pages/Proveedores/DetallesProveedor"
+// Importar componentes de compras
+import { Compras } from "./Pages/Compras/Compras"
+import { NuevaCompra } from "./Pages/Compras/NuevaCompra"
+import { DetalleCompra } from "./Pages/Compras/DetalleCompra"
+// Importamos los componentes de ventas
+import { Ventas } from "./Pages/Ventas/Ventas"
+import { NuevaVenta } from "./Pages/Ventas/NuevaVenta"
+import { DetalleVenta } from "./Pages/Ventas/DetallesVenta"
 // Importamos los nuevos componentes de Configuraciones
-import Configuraciones from "./Pages/Configuraciones/Configuraciones";
-import EditarConfiguracion  from "./Pages/Configuraciones/EditConfiguracion";
-import NewConfiguracion from "./Pages/Configuraciones/NewConfiguracion";
+import Configuraciones from "./Pages/Configuraciones/Configuraciones"
+import EditarConfiguracion from "./Pages/Configuraciones/EditConfiguracion"
+import NewConfiguracion from "./Pages/Configuraciones/NewConfiguracion"
+import { ContinuarVenta } from "./Pages/Ventas/ContinuarVenta"
 
 function App() {
   return (
@@ -51,6 +57,12 @@ function App() {
               <Route path="nueva" element={<NuevaCompra />} />
               <Route path=":id" element={<DetalleCompra />} />
             </Route>
+            {/* Rutas para Ventas */}
+            <Route path="ventas" element={<Ventas />}>
+              <Route path="nueva" element={<NuevaVenta />} />
+              <Route path=":id" element={<DetalleVenta />} />
+              <Route path="continuar/:id" element={<ContinuarVenta />} />
+            </Route>
             {/* Nuevas rutas para Configuraciones */}
             <Route path="configuraciones" element={<Configuraciones />}>
               <Route path="nueva" element={<NewConfiguracion />} />
@@ -61,7 +73,7 @@ function App() {
         <Route path="*" element={<NotFound />} />
       </Routes>
     </MantineProvider>
-  );
+  )
 }
 
-export default App;
+export default App

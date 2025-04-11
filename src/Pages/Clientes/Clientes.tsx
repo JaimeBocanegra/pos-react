@@ -1,37 +1,48 @@
-import { ActionIcon, Button, Flex, Paper, Title, Group, Badge, Box, Text, TextInput } from "@mantine/core";
-import { IconPlus, IconEdit, IconTrash, IconEye, IconUsers, IconSearch, IconUserPlus } from "@tabler/icons-react";
-import DataTable from "../../components/DataTable";
-import { useEffect, useState, useMemo } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
-import { obtenerClientes, eliminarCliente } from "../services/ClienteService";
-import { CustomFilter } from '../../components/CustomFilter';
+"use client"
+
+import { ActionIcon, Button, Flex, Paper, Title, Group, Badge, Text, TextInput } from "@mantine/core"
+import {
+  IconEdit,
+  IconTrash,
+  IconEye,
+  IconUsers,
+  IconSearch,
+  IconUserPlus,
+  IconReceipt,
+  IconUserCircle,
+} from "@tabler/icons-react"
+import DataTable from "../../components/DataTable"
+import { useEffect, useState, useMemo } from "react"
+import { Outlet, useLocation, useNavigate } from "react-router-dom"
+import Swal from "sweetalert2"
+import { obtenerClientes, eliminarCliente } from "../services/ClienteService"
+import { CustomFilter } from "../../components/CustomFilter"
 
 export function Clientes() {
-  const [gridApi, setGridApi] = useState<any | null>(null);
-  const [gridColumnApi, setGridColumnApi] = useState<any | null>(null);
-  const [clientes, setClientes] = useState([] as any[]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [gridApi, setGridApi] = useState<any | null>(null)
+  const [gridColumnApi, setGridColumnApi] = useState<any | null>(null)
+  const [clientes, setClientes] = useState([] as any[])
+  const [searchTerm, setSearchTerm] = useState("")
+  const navigate = useNavigate()
+  const location = useLocation()
 
   const obtenerClietes = async () => {
-    const data = await obtenerClientes();
-    setClientes(data);
-  };
+    const data = await obtenerClientes()
+    setClientes(data)
+  }
 
   useEffect(() => {
-    obtenerClietes();
-  }, [location]);
+    obtenerClietes()
+  }, [location])
 
   const onGridReady = (params: any) => {
-    setGridApi(params.api);
-    setGridColumnApi(params.columnApi);
-  };
+    setGridApi(params.api)
+    setGridColumnApi(params.columnApi)
+  }
 
   const handleEditCliente = (cliente: any) => {
-    navigate("/clientes/" + cliente.idCliente + "/editar");
-  };
+    navigate("/clientes/" + cliente.idCliente + "/editar")
+  }
 
   const handleDeleteCliente = async (cliente: any) => {
     Swal.fire({
@@ -43,31 +54,36 @@ export function Clientes() {
       confirmButtonText: "Si, borrar!",
     }).then(async (result) => {
       if (result.isConfirmed) {
-        await eliminarCliente(cliente.idCliente);
-        Swal.fire("Borrado!", "El cliente ha sido eliminado.", "success");
-        obtenerClietes();
+        await eliminarCliente(cliente.idCliente)
+        Swal.fire("Borrado!", "El cliente ha sido eliminado.", "success")
+        obtenerClietes()
       }
-    });
-  };
+    })
+  }
 
   // Filter data based on search term
   const filteredData = useMemo(() => {
-    if (!searchTerm) return clientes.map((cliente: any) => ({
-      idCliente: cliente.IdCliente,
-      nombre: cliente.Nombre,
-    }));
-    
+    if (!searchTerm)
+      return clientes.map((cliente: any) => ({
+        idCliente: cliente.IdCliente,
+        nombre: cliente.Nombre,
+        iva: cliente.Iva,
+        empleadoRequerido: cliente.EmpleadoRequerido,
+        requiereNumeroEmpleado: cliente.RequiereNumeroEmpleado,
+      }))
+
     return clientes
-      .filter((cliente: any) => 
-        cliente.Nombre.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      .filter((cliente: any) => cliente.Nombre.toLowerCase().includes(searchTerm.toLowerCase()))
       .map((cliente: any) => ({
         idCliente: cliente.IdCliente,
         nombre: cliente.Nombre,
-      }));
-  }, [clientes, searchTerm]);
+        iva: cliente.Iva,
+        empleadoRequerido: cliente.EmpleadoRequerido,
+        requiereNumeroEmpleado: cliente.RequiereNumeroEmpleado,
+      }))
+  }, [clientes, searchTerm])
 
-  const uniqueNames = useMemo(() => Array.from(new Set(filteredData.map(row => row.nombre))), [filteredData]);
+  const uniqueNames = useMemo(() => Array.from(new Set(filteredData.map((row) => row.nombre))), [filteredData])
 
   const columnDefs = [
     { headerName: "ID", field: "idCliente", hide: true },
@@ -95,17 +111,77 @@ export function Clientes() {
       autoHeight: true,
     },
     {
+      headerName: "IVA",
+      field: "iva",
+      width: 120,
+      cellRenderer: (params: any) => (
+        <Badge
+          color={params.value ? "blue" : "gray"}
+          variant="light"
+          leftSection={params.value ? <IconReceipt size={12} /> : null}
+        >
+          {params.value ? "Activado" : "No"}
+        </Badge>
+      ),
+      cellStyle: {
+        textAlign: "center",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      },
+    },
+    {
+      headerName: "Empleado",
+      field: "empleadoRequerido",
+      width: 140,
+      cellRenderer: (params: any) => (
+        <Badge
+          color={params.value ? "green" : "gray"}
+          variant="light"
+          leftSection={params.value ? <IconUserCircle size={12} /> : null}
+        >
+          {params.value ? "Requerido" : "No"}
+        </Badge>
+      ),
+      cellStyle: {
+        textAlign: "center",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      },
+    },
+    {
+      headerName: "Núm. Empleado",
+      field: "requiereNumeroEmpleado",
+      width: 150,
+      cellRenderer: (params: any) => (
+        <Badge
+          color={params.value ? "teal" : "gray"}
+          variant="light"
+          leftSection={params.value ? <IconUserCircle size={12} /> : null}
+        >
+          {params.value ? "Requerido" : "No"}
+        </Badge>
+      ),
+      cellStyle: {
+        textAlign: "center",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      },
+    },
+    {
       headerName: "Acciones",
       field: "actions",
       minWidth: 150,
       cellRenderer: (params: any) => (
-        <Flex 
-          justify="center" 
-          align="center" 
-          gap="md" 
-          sx={{ 
-            height: "100%", 
-            padding: "8px 0" 
+        <Flex
+          justify="center"
+          align="center"
+          gap="md"
+          sx={{
+            height: "100%",
+            padding: "8px 0",
           }}
         >
           <ActionIcon
@@ -140,34 +216,20 @@ export function Clientes() {
           </ActionIcon>
         </Flex>
       ),
-      cellStyle: { 
+      cellStyle: {
         textAlign: "center",
         padding: "8px 0",
-        height: "100%"
+        height: "100%",
       },
       headerClass: "centered-header",
     },
-  ];
+  ]
 
   return (
-    <Paper
-      shadow="xs"
-      p="md"
-      radius="md"
-      w="100%"
-      h="100%"
-      sx={{ backgroundColor: "white" }}
-    >
+    <Paper shadow="xs" p="md" radius="md" w="100%" h="100%" sx={{ backgroundColor: "white" }}>
       {location.pathname === "/clientes" ? (
         <>
-          <Flex 
-            w="100%" 
-            justify="space-between" 
-            align="center" 
-            mb="md"
-            wrap="wrap"
-            gap="sm"
-          >
+          <Flex w="100%" justify="space-between" align="center" mb="md" wrap="wrap" gap="sm">
             <Group spacing="xs">
               <IconUsers size={24} color="#2b8a3e" />
               <Title order={2} sx={{ fontSize: "calc(1.2rem + 0.5vw)" }}>
@@ -213,19 +275,21 @@ export function Clientes() {
                 <IconUsers size={32} color="#2b8a3e" />
               </Group>
             </Paper>
+
+            
           </Group>
-        
-            <DataTable
-              rowData={filteredData}
-              columnDefs={columnDefs}
-              onGridReady={onGridReady}
-              rowsPerPage={10}
-              pagination={true}
-            />
+
+          <DataTable
+            rowData={filteredData}
+            columnDefs={columnDefs}
+            onGridReady={onGridReady}
+            rowsPerPage={10}
+            pagination={true}
+          />
         </>
       ) : (
         <Outlet />
       )}
     </Paper>
-  );
+  )
 }

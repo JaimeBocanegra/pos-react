@@ -1,60 +1,63 @@
-import { useNavigate, useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { supabase } from "../../supabase/client";
-import { 
-  ActionIcon, 
-  Flex, 
-  Text, 
-  Paper, 
-  Title, 
-  Group, 
-  Badge, 
-  Divider, 
+"use client"
+
+import type React from "react"
+
+import { useNavigate, useParams } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { supabase } from "../../supabase/client"
+import {
+  ActionIcon,
+  Flex,
+  Text,
+  Paper,
+  Title,
+  Group,
+  Badge,
+  Divider,
   Skeleton,
   Box,
   Card,
   Avatar,
-  Grid
-} from "@mantine/core";
-import { 
-  IconArrowLeft, 
-  IconUsers, 
-  IconId, 
-  IconUser, 
+  Grid,
+} from "@mantine/core"
+import {
+  IconArrowLeft,
+  IconUsers,
+  IconId,
+  IconUser,
   IconCalendar,
-  IconUserCircle
-} from "@tabler/icons-react";
+  IconUserCircle,
+  IconReceipt,
+  IconCheck,
+  IconX,
+} from "@tabler/icons-react"
 
 export function DetallesCliente() {
-  const navigate = useNavigate();
-  const { id } = useParams();
-  const [cliente, setCliente] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate()
+  const { id } = useParams()
+  const [cliente, setCliente] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const obtenerCliente = async () => {
-      setLoading(true);
+      setLoading(true)
       try {
-        const { data, error } = await supabase
-          .from("CLIENTES")
-          .select("*")
-          .eq("IdCliente", id)
-          .single();
-        
+        const { data, error } = await supabase.from("CLIENTES").select("*").eq("IdCliente", id).single()
+
         if (error) {
-          console.log(error);
+          console.log(error)
         } else {
-          setCliente(data);
+          setCliente(data)
         }
       } catch (error) {
-        console.log(error);
+        console.log(error)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
+    }
 
-    obtenerCliente();
-  }, [id]);
+    obtenerCliente()
+  }, [id])
 
   if (loading) {
     return (
@@ -66,7 +69,7 @@ export function DetallesCliente() {
           <Skeleton height={25} width="80%" mb="sm" />
         </Flex>
       </Paper>
-    );
+    )
   }
 
   if (!cliente) {
@@ -74,30 +77,26 @@ export function DetallesCliente() {
       <Paper shadow="xs" p="xl" radius="md" w="100%" h="100%" withBorder>
         <Flex align="center" justify="center" direction="column" gap="md">
           <IconUserCircle size={48} color="gray" />
-          <Text size="lg" color="dimmed">Cliente no encontrado</Text>
-          <ActionIcon 
-            color="blue" 
-            size="lg" 
-            variant="light" 
-            onClick={() => navigate(-1)}
-            radius="xl"
-          >
+          <Text size="lg" color="dimmed">
+            Cliente no encontrado
+          </Text>
+          <ActionIcon color="blue" size="lg" variant="light" onClick={() => navigate(-1)} radius="xl">
             <IconArrowLeft size="1.2rem" />
           </ActionIcon>
         </Flex>
       </Paper>
-    );
+    )
   }
 
   // Get initials for avatar
   const getInitials = (name: string) => {
     return name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
+      .split(" ")
+      .map((word) => word[0])
+      .join("")
       .substring(0, 2)
-      .toUpperCase();
-  };
+      .toUpperCase()
+  }
 
   return (
     <Paper shadow="xs" p="xl" radius="md" w="100%" h="100%">
@@ -105,28 +104,20 @@ export function DetallesCliente() {
         {/* Header */}
         <Flex w="100%" align="center" justify="space-between">
           <Group>
-            <ActionIcon 
-              color="blue" 
-              size="lg" 
-              variant="light" 
-              onClick={() => navigate(-1)}
-              radius="xl"
-            >
+            <ActionIcon color="blue" size="lg" variant="light" onClick={() => navigate(-1)} radius="xl">
               <IconArrowLeft size="1.2rem" />
             </ActionIcon>
-            <Title order={2} sx={(theme) => ({ 
-              fontSize: "calc(1.1rem + 0.5vw)",
-              color: theme.colors.blue[7]
-            })}>
+            <Title
+              order={2}
+              sx={(theme) => ({
+                fontSize: "calc(1.1rem + 0.5vw)",
+                color: theme.colors.blue[7],
+              })}
+            >
               Detalle de Cliente
             </Title>
           </Group>
-          <Badge 
-            size="lg" 
-            color="green" 
-            variant="filled"
-            leftSection={<IconUsers size={14} />}
-          >
+          <Badge size="lg" color="green" variant="filled" leftSection={<IconUsers size={14} />}>
             Cliente
           </Badge>
         </Flex>
@@ -138,15 +129,13 @@ export function DetallesCliente() {
           <Card.Section p="md" bg="green.0">
             <Group position="apart">
               <Group>
-                <Avatar 
-                  size={60} 
-                  radius="md" 
-                  color="green"
-                >
+                <Avatar size={60} radius="md" color="green">
                   {getInitials(cliente.Nombre)}
                 </Avatar>
                 <Box>
-                  <Text size="xl" weight={700}>{cliente.Nombre}</Text>
+                  <Text size="xl" weight={700}>
+                    {cliente.Nombre}
+                  </Text>
                   <Badge color="green" variant="light" size="sm">
                     ID: {cliente.IdCliente}
                   </Badge>
@@ -158,14 +147,14 @@ export function DetallesCliente() {
 
           <Grid mt="xl" gutter="xl">
             <Grid.Col xs={12} sm={6}>
-              <InfoItem 
+              <InfoItem
                 icon={<IconId size="1.2rem" color="#2b8a3e" />}
                 label="ID de Cliente"
                 value={cliente.IdCliente}
               />
             </Grid.Col>
             <Grid.Col xs={12} sm={6}>
-              <InfoItem 
+              <InfoItem
                 icon={<IconUser size="1.2rem" color="#2b8a3e" />}
                 label="Nombre"
                 value={cliente.Nombre}
@@ -174,7 +163,7 @@ export function DetallesCliente() {
               />
             </Grid.Col>
             <Grid.Col xs={12}>
-              <InfoItem 
+              <InfoItem
                 icon={<IconCalendar size="1.2rem" color="#2b8a3e" />}
                 label="Fecha de Registro"
                 value={new Date(cliente.created_at).toLocaleDateString("es-ES", {
@@ -189,15 +178,85 @@ export function DetallesCliente() {
           </Grid>
         </Card>
 
+        {/* Customer Configuration Card */}
+        <Card shadow="sm" p="lg" radius="md" withBorder>
+          <Title order={4} mb="md">
+            Configuración de Ventas
+          </Title>
+          <Grid>
+            <Grid.Col xs={12} sm={4}>
+              <Paper p="md" withBorder radius="md" bg={cliente.Iva ? "green.0" : "gray.0"}>
+                <Flex direction="column" align="center" justify="center" py="md">
+                  <IconReceipt size={24} color={cliente.Iva ? "#2b8a3e" : "#868e96"} />
+                  <Text size="sm" color="dimmed" mt="xs">
+                    IVA Automático
+                  </Text>
+                  <Badge
+                    color={cliente.Iva ? "green" : "gray"}
+                    size="lg"
+                    variant="light"
+                    mt="xs"
+                    leftSection={cliente.Iva ? <IconCheck size={14} /> : <IconX size={14} />}
+                  >
+                    {cliente.Iva ? "Activado" : "Desactivado"}
+                  </Badge>
+                </Flex>
+              </Paper>
+            </Grid.Col>
+            <Grid.Col xs={12} sm={4}>
+              <Paper p="md" withBorder radius="md" bg={cliente.EmpleadoRequerido ? "green.0" : "gray.0"}>
+                <Flex direction="column" align="center" justify="center" py="md">
+                  <IconUserCircle size={24} color={cliente.EmpleadoRequerido ? "#2b8a3e" : "#868e96"} />
+                  <Text size="sm" color="dimmed" mt="xs">
+                    Empleado Requerido
+                  </Text>
+                  <Badge
+                    color={cliente.EmpleadoRequerido ? "green" : "gray"}
+                    size="lg"
+                    variant="light"
+                    mt="xs"
+                    leftSection={cliente.EmpleadoRequerido ? <IconCheck size={14} /> : <IconX size={14} />}
+                  >
+                    {cliente.EmpleadoRequerido ? "Activado" : "Desactivado"}
+                  </Badge>
+                </Flex>
+              </Paper>
+            </Grid.Col>
+            <Grid.Col xs={12} sm={4}>
+              <Paper p="md" withBorder radius="md" bg={cliente.RequiereNumeroEmpleado ? "green.0" : "gray.0"}>
+                <Flex direction="column" align="center" justify="center" py="md">
+                  <IconId size={24} color={cliente.RequiereNumeroEmpleado ? "#2b8a3e" : "#868e96"} />
+                  <Text size="sm" color="dimmed" mt="xs">
+                    Número de Empleado
+                  </Text>
+                  <Badge
+                    color={cliente.RequiereNumeroEmpleado ? "green" : "gray"}
+                    size="lg"
+                    variant="light"
+                    mt="xs"
+                    leftSection={cliente.RequiereNumeroEmpleado ? <IconCheck size={14} /> : <IconX size={14} />}
+                  >
+                    {cliente.RequiereNumeroEmpleado ? "Requerido" : "No Requerido"}
+                  </Badge>
+                </Flex>
+              </Paper>
+            </Grid.Col>
+          </Grid>
+        </Card>
+
         {/* Customer Stats Card */}
         <Card shadow="sm" p="lg" radius="md" withBorder>
-          <Title order={4} mb="md">Información del Cliente</Title>
+          <Title order={4} mb="md">
+            Información del Cliente
+          </Title>
           <Grid>
             <Grid.Col xs={12} sm={6}>
               <Paper p="md" withBorder radius="md" bg="gray.0">
                 <Flex direction="column" align="center" justify="center" py="md">
                   <IconCalendar size={24} color="#2b8a3e" />
-                  <Text size="sm" color="dimmed" mt="xs">Cliente desde</Text>
+                  <Text size="sm" color="dimmed" mt="xs">
+                    Cliente desde
+                  </Text>
                   <Text size="md" weight={600}>
                     {new Date(cliente.created_at).toLocaleDateString("es-ES", {
                       month: "long",
@@ -211,7 +270,9 @@ export function DetallesCliente() {
               <Paper p="md" withBorder radius="md" bg="green.0">
                 <Flex direction="column" align="center" justify="center" py="md">
                   <IconUserCircle size={24} color="#2b8a3e" />
-                  <Text size="sm" color="dimmed" mt="xs">Estado</Text>
+                  <Text size="sm" color="dimmed" mt="xs">
+                    Estado
+                  </Text>
                   <Badge color="green" size="lg" variant="light" mt="xs">
                     Activo
                   </Badge>
@@ -220,42 +281,30 @@ export function DetallesCliente() {
             </Grid.Col>
           </Grid>
         </Card>
-
-        {/* Contact Information Card - Can be expanded with more customer details */}
-        <Card shadow="sm" p="lg" radius="md" withBorder>
-          <Title order={4} mb="md">Datos de Contacto</Title>
-          <Paper p="md" withBorder radius="md" bg="gray.0">
-            <Flex direction="column" align="center" justify="center" py="md">
-              <IconUser size={32} color="#2b8a3e" />
-              <Text size="lg" weight={600} mt="md" align="center">
-                {cliente.Nombre}
-              </Text>
-              <Text color="dimmed" size="sm" align="center" mt="xs">
-                Cliente #{cliente.IdCliente}
-              </Text>
-            </Flex>
-          </Paper>
-        </Card>
       </Flex>
     </Paper>
-  );
+  )
 }
 
 // Helper component for displaying info items
-function InfoItem({ icon, label, value, highlight = false, highlightColor = "blue" }: { icon: React.ReactNode; label: string; value: string | number; highlight?: boolean; highlightColor?: string }) {
+function InfoItem({
+  icon,
+  label,
+  value,
+  highlight = false,
+  highlightColor = "blue",
+}: { icon: React.ReactNode; label: string; value: string | number; highlight?: boolean; highlightColor?: string }) {
   return (
     <Group position="apart" spacing="xs">
       <Group spacing="xs">
         {icon}
-        <Text weight={600} color="dimmed" size="sm">{label}:</Text>
+        <Text weight={600} color="dimmed" size="sm">
+          {label}:
+        </Text>
       </Group>
-      <Text 
-        weight={highlight ? 700 : 500} 
-        color={highlight ? highlightColor : "dark"}
-        size={highlight ? "md" : "sm"}
-      >
+      <Text weight={highlight ? 700 : 500} color={highlight ? highlightColor : "dark"} size={highlight ? "md" : "sm"}>
         {value}
       </Text>
     </Group>
-  );
+  )
 }
