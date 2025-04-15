@@ -1,7 +1,7 @@
 import { supabase } from "../../supabase/client"
 import { obtenerProductos } from "./ProductoService"
 
-// Interfaces para tipado
+// Interfaces for typing
 export interface Venta {
   IdVenta?: number
   NumeroDocumento: string
@@ -38,7 +38,7 @@ export interface DetalleVenta {
   PrecioModificado?: boolean
 }
 
-// Obtener todas las ventas
+// Get all sales
 export const obtenerVentas = async () => {
   const { data, error } = await supabase.from("VENTA").select("*").order("IdVenta", { ascending: false })
 
@@ -50,7 +50,7 @@ export const obtenerVentas = async () => {
   return data || []
 }
 
-// Obtener una venta por ID
+// Get a sale by ID
 export const obtenerVentaPorId = async (id: number) => {
   const { data, error } = await supabase.from("VENTA").select("*").eq("IdVenta", id).single()
 
@@ -62,7 +62,7 @@ export const obtenerVentaPorId = async (id: number) => {
   return data
 }
 
-// Obtener detalles de una venta
+// Get details of a sale
 export const obtenerDetallesVenta = async (idVenta: number) => {
   const { data, error } = await supabase.from("DETALLE_VENTA").select("*").eq("IdVenta", idVenta)
 
@@ -74,10 +74,27 @@ export const obtenerDetallesVenta = async (idVenta: number) => {
   return data || []
 }
 
-// Crear una nueva venta
+// NEW OPTIMIZED FUNCTION: Get details for multiple sales at once
+export const obtenerDetallesVentaMultiple = async (idsVenta: number[]) => {
+  if (!idsVenta.length) return []
+  
+  const { data, error } = await supabase
+    .from("DETALLE_VENTA")
+    .select("*")
+    .in("IdVenta", idsVenta)
+
+  if (error) {
+    console.error("Error al obtener detalles de ventas múltiples:", error)
+    throw error
+  }
+
+  return data || []
+}
+
+// Create a new sale
 export const crearVenta = async (venta: any, detallesData: any[]) => {
   try {
-    // 1. Insertar encabezado de venta
+    // 1. Insert sale header
     const { data: ventaInsertada, error: errorVenta } = await supabase.from("VENTA").insert([venta]).select()
 
     if (errorVenta) {
@@ -87,7 +104,7 @@ export const crearVenta = async (venta: any, detallesData: any[]) => {
 
     const idVenta = ventaInsertada[0].IdVenta
 
-    // 2. Insertar detalles de venta
+    // 2. Insert sale details
     const detallesConIdVenta = detallesData.map((detalle) => ({
       ...detalle,
       IdVenta: idVenta,
@@ -100,7 +117,7 @@ export const crearVenta = async (venta: any, detallesData: any[]) => {
       throw errorDetalles
     }
 
-    // 3. Actualizar stock de productos (reducir) solo si la venta está COMPLETADA
+    // 3. Update product stock (reduce) only if the sale is COMPLETED
     if (venta.Estatus === "COMPLETADO") {
       await actualizarStockProductos(detallesData, false)
     }
@@ -112,10 +129,10 @@ export const crearVenta = async (venta: any, detallesData: any[]) => {
   }
 }
 
-// Actualizar una venta existente
+// Update an existing sale
 export const actualizarVenta = async (idVenta: number, venta: any, detallesData: any[]) => {
   try {
-    // 1. Obtener el estado actual de la venta
+    // 1. Get the current state of the sale
     const { data: ventaActual, error: errorVentaActual } = await supabase
       .from("VENTA")
       .select("*")
@@ -127,15 +144,15 @@ export const actualizarVenta = async (idVenta: number, venta: any, detallesData:
       throw errorVentaActual
     }
 
-    // Verificar si la venta está completada (no se puede editar)
+    // Check if the sale is completed (cannot be edited)
     if (ventaActual.Estatus === "COMPLETADO") {
       throw new Error("No se puede editar una venta que ya está completada")
     }
 
-    // 2. Obtener los detalles actuales para restaurar stock si es necesario
+    // 2. Get current details to restore stock if necessary
     const detallesActuales = await obtenerDetallesVenta(idVenta)
 
-    // 3. Actualizar encabezado de venta
+    // 3. Update sale header
     const { data: ventaActualizada, error: errorVenta } = await supabase
       .from("VENTA")
       .update(venta)
@@ -147,7 +164,7 @@ export const actualizarVenta = async (idVenta: number, venta: any, detallesData:
       throw errorVenta
     }
 
-    // 4. Eliminar detalles actuales
+    // 4. Delete current details
     const { error: errorEliminarDetalles } = await supabase.from("DETALLE_VENTA").delete().eq("IdVenta", idVenta)
 
     if (errorEliminarDetalles) {
@@ -155,7 +172,7 @@ export const actualizarVenta = async (idVenta: number, venta: any, detallesData:
       throw errorEliminarDetalles
     }
 
-    // 5. Insertar nuevos detalles
+    // 5. Insert new details
     const detallesConIdVenta = detallesData.map((detalle) => ({
       ...detalle,
       IdVenta: idVenta,
@@ -168,7 +185,7 @@ export const actualizarVenta = async (idVenta: number, venta: any, detallesData:
       throw errorDetalles
     }
 
-    // 6. Actualizar stock de productos si la venta cambia a COMPLETADO
+    // 6. Update product stock if the sale changes to COMPLETED
     if (ventaActual.Estatus === "PENDIENTE" && venta.Estatus === "COMPLETADO") {
       await actualizarStockProductos(detallesData, false)
     }
@@ -180,7 +197,7 @@ export const actualizarVenta = async (idVenta: number, venta: any, detallesData:
   }
 }
 
-// Función auxiliar para actualizar el stock de productos
+// Helper function to update product stock
 const actualizarStockProductos = async (detalles: any[], aumentar: boolean = false) => {
   try {
     const productos = await obtenerProductos()
@@ -188,7 +205,7 @@ const actualizarStockProductos = async (detalles: any[], aumentar: boolean = fal
     for (const detalle of detalles) {
       const producto = productos.find((p: any) => p.Id_producto === detalle.IdProducto)
       if (producto) {
-        // Si aumentar es true, sumamos al stock (restaurar), si es false, restamos (venta)
+        // If aumentar is true, add to stock (restore), if false, subtract (sale)
         const nuevoStock = aumentar
           ? Number(producto.Stock) + Number(detalle.Cantidad)
           : Math.max(0, Number(producto.Stock) - Number(detalle.Cantidad))
@@ -210,10 +227,10 @@ const actualizarStockProductos = async (detalles: any[], aumentar: boolean = fal
   }
 }
 
-// Cancelar una venta
+// Cancel a sale
 export const cancelarVenta = async (idVenta: number, restaurarStock = true) => {
   try {
-    // 1. Obtener el estado actual de la venta
+    // 1. Get the current state of the sale
     const { data: ventaActual, error: errorVentaActual } = await supabase
       .from("VENTA")
       .select("*")
@@ -222,19 +239,19 @@ export const cancelarVenta = async (idVenta: number, restaurarStock = true) => {
 
     if (errorVentaActual) throw errorVentaActual
 
-    // 2. Marcar la venta como cancelada
+    // 2. Mark the sale as canceled
     const { error } = await supabase.from("VENTA").update({ Estatus: "CANCELADO" }).eq("IdVenta", idVenta)
 
     if (error) throw error
 
-    // 3. Si se debe restaurar el stock y la venta estaba COMPLETADA, obtener los detalles y actualizar
+    // 3. If stock should be restored and the sale was COMPLETED, get the details and update
     if (restaurarStock && ventaActual.Estatus === "COMPLETADO") {
-      // Primero obtenemos los detalles de la venta
+      // First get the sale details
       const detalles = await obtenerDetallesVenta(idVenta)
 
       if (!detalles || detalles.length === 0) return true
 
-      // Actualizamos el stock de cada producto
+      // Update the stock of each product
       await actualizarStockProductos(detalles, true)
     }
 

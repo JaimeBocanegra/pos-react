@@ -26,9 +26,10 @@ import {
   IconFile,
   IconPackage,
   IconUser,
+  IconChartBar,
 } from "@tabler/icons-react"
-import { useState, useEffect, useMemo } from "react"
-import { obtenerCompras, obtenerDetallesCompra } from "../services/CompraService"
+import { useState, useEffect, useMemo, useRef } from "react"
+import { obtenerCompras, obtenerDetallesCompraMultiple } from "../services/CompraService"
 import { obtenerProveedores } from "../services/ProveedorService"
 import { obtenerProductos } from "../services/ProductoService"
 import DataTable from "../../components/DataTable"
@@ -37,6 +38,7 @@ import "jspdf-autotable"
 import * as XLSX from "xlsx"
 import { Bar, Pie } from "react-chartjs-2"
 import Swal from "sweetalert2"
+import html2canvas from "html2canvas"
 
 // Componente para renderizar montos
 const MontoRenderer = (props: any) => {
@@ -86,17 +88,22 @@ interface ReporteComprasProps {
 
 export function ReporteCompras({ showFilters, viewMode, chartType }: ReporteComprasProps) {
   const [compras, setCompras] = useState<any[]>([])
-  const [detallesCompras, setDetallesCompras] = useState<any[]>([])
   const [comprasConDetalles, setComprasConDetalles] = useState<any[]>([])
   const [proveedores, setProveedores] = useState<any[]>([])
   const [productos, setProductos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingDetalles, setLoadingDetalles] = useState(false)
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null])
   const [selectedEstatus, setSelectedEstatus] = useState<string[]>([])
   const [selectedProveedores, setSelectedProveedores] = useState<string[]>([])
   const [selectedProductos, setSelectedProductos] = useState<string[]>([])
   const [gridApi, setGridApi] = useState<any | null>(null)
   const [gridColumnApi, setGridColumnApi] = useState<any | null>(null)
+
+  // Referencias para los gráficos
+  const estatusChartRef = useRef<HTMLDivElement>(null)
+  const montosEstatusChartRef = useRef<HTMLDivElement>(null)
+  const proveedoresChartRef = useRef<HTMLDivElement>(null)
 
   // Cargar datos
   useEffect(() => {
@@ -112,49 +119,8 @@ export function ReporteCompras({ showFilters, viewMode, chartType }: ReporteComp
         setProveedores(proveedoresData)
         setProductos(productosData)
 
-        // Cargar detalles de compras
-        const detalles: any[] = []
-        for (const compra of comprasData) {
-          const detallesCompra = await obtenerDetallesCompra(compra.IdCompra)
-          detalles.push(...detallesCompra)
-        }
-        setDetallesCompras(detalles)
-
-        // Unir compras con sus detalles
-        const comprasDetalladas: any[] = []
-
-        for (const compra of comprasData) {
-          const detallesDeCompra = detalles.filter((d) => d.IdCompra === compra.IdCompra)
-
-          if (detallesDeCompra.length === 0) {
-            // Si no hay detalles, agregar la compra con valores nulos en los campos de detalle
-            comprasDetalladas.push({
-              ...compra,
-              IdDetalleCompra: null,
-              IdProducto: null,
-              CodigoProducto: null,
-              DescripcionProducto: null,
-              CategoriaProducto: null,
-              MedidaProducto: null,
-              PrecioCompra: null,
-              PrecioVenta: null,
-              Cantidad: null,
-              SubTotal: null,
-              SinDetalles: true,
-            })
-          } else {
-            // Si hay detalles, crear una fila por cada detalle
-            for (const detalle of detallesDeCompra) {
-              comprasDetalladas.push({
-                ...compra,
-                ...detalle,
-                SinDetalles: false,
-              })
-            }
-          }
-        }
-
-        setComprasConDetalles(comprasDetalladas)
+        // Cargar detalles de compras de forma optimizada
+        await cargarDetallesComprasOptimizado(comprasData)
       } catch (error) {
         console.error("Error al cargar datos:", error)
         Swal.fire({
@@ -173,6 +139,70 @@ export function ReporteCompras({ showFilters, viewMode, chartType }: ReporteComp
 
     cargarDatos()
   }, [])
+
+  // OPTIMIZADO: Cargar detalles de compras en un solo lote
+  const cargarDetallesComprasOptimizado = async (comprasData: any[] = compras) => {
+    if (comprasData.length === 0) return
+
+    setLoadingDetalles(true)
+    try {
+      // Obtener todos los IDs de compras
+      const comprasIds = comprasData.map((compra) => compra.IdCompra)
+
+      // Obtener todos los detalles en una sola consulta
+      const todosDetalles = await obtenerDetallesCompraMultiple(comprasIds)
+
+      // Unir compras con sus detalles
+      const comprasDetalladas: any[] = []
+
+      for (const compra of comprasData) {
+        // Filtrar detalles para esta compra
+        const detallesDeCompra = todosDetalles.filter((detalle) => detalle.IdCompra === compra.IdCompra)
+
+        if (detallesDeCompra.length === 0) {
+          // Si no hay detalles, agregar la compra con valores nulos en los campos de detalle
+          comprasDetalladas.push({
+            ...compra,
+            IdDetalleCompra: null,
+            IdProducto: null,
+            CodigoProducto: null,
+            DescripcionProducto: null,
+            CategoriaProducto: null,
+            MedidaProducto: null,
+            PrecioCompra: null,
+            PrecioVenta: null,
+            Cantidad: null,
+            SubTotal: null,
+            SinDetalles: true,
+          })
+        } else {
+          // Si hay detalles, crear una fila por cada detalle
+          for (const detalle of detallesDeCompra) {
+            comprasDetalladas.push({
+              ...compra,
+              ...detalle,
+              SinDetalles: false,
+            })
+          }
+        }
+      }
+
+      setComprasConDetalles(comprasDetalladas)
+    } catch (error) {
+      console.error("Error al cargar detalles de compras:", error)
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudieron cargar los detalles de las compras",
+        toast: true,
+        position: "top-end",
+        timer: 3000,
+        showConfirmButton: false,
+      })
+    } finally {
+      setLoadingDetalles(false)
+    }
+  }
 
   // Opciones para los filtros
   const estatusOptions = [
@@ -806,16 +836,96 @@ export function ReporteCompras({ showFilters, viewMode, chartType }: ReporteComp
 
     doc.save(`Reporte_Compras_Detallado_${new Date().toISOString().split("T")[0]}.pdf`)
 
-    // Notificar al usuario
-    Swal.fire({
-      position: "top-end",
-      icon: "success",
-      title: "Reporte exportado",
-      text: "El reporte se ha exportado correctamente a PDF",
-      showConfirmButton: false,
-      timer: 2000,
-      toast: true,
-    })
+    // Si estamos en modo gráfico, también exportamos los gráficos
+    if (viewMode === "chart") {
+      exportarGraficosPDF()
+    } else {
+      Swal.fire({
+        position: "top-end",
+        icon: "success",
+        title: "Reporte exportado",
+        text: "El reporte se ha exportado correctamente a PDF",
+        showConfirmButton: false,
+        timer: 2000,
+        toast: true,
+      })
+    }
+  }
+
+  // Función para exportar gráficos a PDF
+  const exportarGraficosPDF = async () => {
+    try {
+      Swal.fire({
+        title: "Generando PDF de gráficos",
+        text: "Esto puede tardar unos momentos...",
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading()
+        },
+      })
+
+      // Crear un nuevo PDF para los gráficos
+      const docGraficos = new jsPDF()
+      docGraficos.setFontSize(18)
+      docGraficos.text("Gráficos del Reporte de Compras", 14, 22)
+      docGraficos.setFontSize(11)
+      docGraficos.text(`Fecha de generación: ${new Date().toLocaleDateString()}`, 14, 30)
+
+      let yPosition = 40
+
+      // Capturar y agregar cada gráfico si existe
+      if (estatusChartRef.current) {
+        const estatusCanvas = await html2canvas(estatusChartRef.current)
+        const estatusImgData = estatusCanvas.toDataURL("image/png")
+        docGraficos.text("Compras por Estado", 14, yPosition)
+        yPosition += 5
+        docGraficos.addImage(estatusImgData, "PNG", 15, yPosition, 180, 90)
+        yPosition += 100
+      }
+
+      if (montosEstatusChartRef.current) {
+        const montosCanvas = await html2canvas(montosEstatusChartRef.current)
+        const montosImgData = montosCanvas.toDataURL("image/png")
+        docGraficos.text("Montos por Estado", 14, yPosition)
+        yPosition += 5
+        docGraficos.addImage(montosImgData, "PNG", 15, yPosition, 180, 90)
+        yPosition += 100
+      }
+
+      // Si no hay espacio suficiente, agregar nueva página
+      if (yPosition > 240 && proveedoresChartRef.current) {
+        docGraficos.addPage()
+        yPosition = 20
+      }
+
+      if (proveedoresChartRef.current) {
+        const proveedoresCanvas = await html2canvas(proveedoresChartRef.current)
+        const proveedoresImgData = proveedoresCanvas.toDataURL("image/png")
+        docGraficos.text("Compras por Proveedor (Top 5)", 14, yPosition)
+        yPosition += 5
+        docGraficos.addImage(proveedoresImgData, "PNG", 15, yPosition, 180, 90)
+      }
+
+      // Guardar el PDF con gráficos
+      docGraficos.save(`Reporte_Compras_Graficos_${new Date().toISOString().split("T")[0]}.pdf`)
+
+      Swal.fire({
+        position: "top-end",
+        icon: "success",
+        title: "PDF de gráficos generado",
+        text: "Los gráficos se han exportado correctamente a PDF",
+        showConfirmButton: false,
+        timer: 2000,
+        toast: true,
+      })
+    } catch (error) {
+      console.error("Error al exportar gráficos a PDF:", error)
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudieron exportar los gráficos a PDF",
+      })
+    }
   }
 
   return (
@@ -949,7 +1059,7 @@ export function ReporteCompras({ showFilters, viewMode, chartType }: ReporteComp
               <Text weight={600} mb="md" align="center">
                 Compras por Estado
               </Text>
-              <Box sx={{ height: "300px" }}>
+              <Box sx={{ height: "300px" }} ref={estatusChartRef}>
                 {chartType === "bar" ? (
                   <Bar data={chartData.estatusData} options={chartOptions} />
                 ) : (
@@ -963,7 +1073,7 @@ export function ReporteCompras({ showFilters, viewMode, chartType }: ReporteComp
               <Text weight={600} mb="md" align="center">
                 Montos por Estado
               </Text>
-              <Box sx={{ height: "300px" }}>
+              <Box sx={{ height: "300px" }} ref={montosEstatusChartRef}>
                 {chartType === "bar" ? (
                   <Bar data={chartData.montosEstatusData} options={chartOptions} />
                 ) : (
@@ -977,7 +1087,7 @@ export function ReporteCompras({ showFilters, viewMode, chartType }: ReporteComp
               <Text weight={600} mb="md" align="center">
                 Compras por Proveedor (Top 5)
               </Text>
-              <Box sx={{ height: "300px" }}>
+              <Box sx={{ height: "300px" }} ref={proveedoresChartRef}>
                 <Bar data={chartData.proveedoresData} options={chartOptions} />
               </Box>
             </Paper>
@@ -1005,6 +1115,17 @@ export function ReporteCompras({ showFilters, viewMode, chartType }: ReporteComp
         >
           Exportar a PDF
         </Button>
+        {viewMode === "chart" && (
+          <Button
+            variant="outline"
+            color="green"
+            leftIcon={<IconChartBar size={16} />}
+            onClick={exportarGraficosPDF}
+            disabled={filteredComprasConDetalles.length === 0}
+          >
+            Exportar Gráficos a PDF
+          </Button>
+        )}
       </Group>
     </Box>
   )

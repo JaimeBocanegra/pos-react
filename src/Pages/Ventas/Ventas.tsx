@@ -566,7 +566,7 @@ export function Ventas() {
               Resumen General
             </Text>
             <Grid mb="md" gutter="md">
-              <Grid.Col span={4}>
+              <Grid.Col span={3}>
                 <Paper p="md" radius="md" withBorder h="100%">
                   <Group position="apart">
                     <div>
@@ -591,68 +591,7 @@ export function Ventas() {
                 </Paper>
               </Grid.Col>
 
-              <Grid.Col span={4}>
-                <Paper p="md" radius="md" withBorder h="100%">
-                  <Group position="apart">
-                    <div>
-                      <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
-                        Monto Total Completadas
-                      </Text>
-                      <Text weight={700} size="xl" color="green">
-                        $ {montoCompletadas.toFixed(2)} MXN
-                      </Text>
-                      <Text size="sm" color="dimmed">
-                        {ventasCompletadas} ventas
-                      </Text>
-                    </div>
-                    <IconCheck size={32} color="green" />
-                  </Group>
-                </Paper>
-              </Grid.Col>
-
-              <Grid.Col span={4}>
-                <Paper p="md" radius="md" withBorder h="100%">
-                  <Group position="apart">
-                    <div>
-                      <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
-                        Monto Total Canceladas
-                      </Text>
-                      <Text weight={700} size="xl" color="red">
-                        $ {montoCanceladas.toFixed(2)} MXN
-                      </Text>
-                      <Text size="sm" color="dimmed">
-                        {ventasCanceladas} ventas
-                      </Text>
-                    </div>
-                    <IconBan size={32} color="red" />
-                  </Group>
-                </Paper>
-              </Grid.Col>
-            </Grid>
-
-            {/* Stats Cards - Segunda fila: Detalle por estado */}
-            <Group position="apart" mb="xs" mt="md">
-              <Text weight={600}>Detalle por Estado</Text>
-              <Button
-                variant="subtle"
-                color="gray"
-                compact
-                onClick={() => setShowDetailCards(!showDetailCards)}
-                rightIcon={showDetailCards ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
-              >
-                {showDetailCards ? "Ocultar detalles" : "Mostrar detalles"}
-              </Button>
-            </Group>
-
-            {showDetailCards && (
-              <Grid
-                mb="md"
-                gutter="md"
-                style={{
-                  animation: "fadeIn 0.3s ease-in-out",
-                }}
-              >
-                <Grid.Col span={4}>
+              <Grid.Col span={3}>
                   <Paper p="md" radius="md" withBorder h="100%" sx={{ borderLeft: "4px solid green" }}>
                     <Group position="apart">
                       <div>
@@ -688,7 +627,7 @@ export function Ventas() {
                   </Paper>
                 </Grid.Col>
 
-                <Grid.Col span={4}>
+              <Grid.Col span={3}>
                   <Paper p="md" radius="md" withBorder h="100%" sx={{ borderLeft: "4px solid #FFB800" }}>
                     <Group position="apart">
                       <div>
@@ -724,7 +663,7 @@ export function Ventas() {
                   </Paper>
                 </Grid.Col>
 
-                <Grid.Col span={4}>
+                <Grid.Col span={3}>
                   <Paper p="md" radius="md" withBorder h="100%" sx={{ borderLeft: "4px solid red" }}>
                     <Group position="apart">
                       <div>
@@ -759,8 +698,7 @@ export function Ventas() {
                     </Group>
                   </Paper>
                 </Grid.Col>
-              </Grid>
-            )}
+            </Grid>
 
             <Box sx={{ height: "calc(100% - 320px)" }}>
               <DataTable

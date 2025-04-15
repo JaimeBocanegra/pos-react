@@ -94,7 +94,7 @@ interface VentaForm {
   iva: number
   numEmpleado: string
   empleado: string
-  metodoPago: "EFECTIVO" | "TARJETA" | "CREDITO"
+  metodoPago: "EFECTIVO" | "TARJETA" | "CREDITO" | "EFECTIVO/TARJETA"
 }
 
 // Interfaz para el cliente con los nuevos campos
@@ -454,7 +454,7 @@ export function NuevaVenta() {
   // Agregar marca de agua si está cancelada
 
   // Modificar la función imprimirComprobante para mostrar correctamente los precios originales y descuentos
-  const imprimirComprobante = async (ventaData: any, detallesData: any) => {
+  const imprimirComprobante = async (ventaData: any, detallesData: any ,RequiereEmpelado: boolean) => {
     if (!ventaData || !detallesData.length) return
 
     try {
@@ -499,7 +499,9 @@ export function NuevaVenta() {
       doc.text(`Venta: ${ventaData.NumeroDocumento || "N/A"}`, 14, 40)
       doc.text(`Fecha: ${ventaData.FechaRegistro ? formatearFecha(ventaData.FechaRegistro) : "N/A"}`, 14, 48)
       doc.text(`Usuario: ${ventaData.UsuarioRegistro || "Admin"}`, 14, 56)
-      doc.text(`Empleado: ${ventaData.Empleado || "N/A"}`, 14, 64)
+      if(RequiereEmpelado) {
+        doc.text(`Empleado: ${ventaData.Empleado || "N/A"}`, 14, 64)
+      }
 
       doc.text(`Cliente: ${ventaData.NombreCliente || "N/A"}`, 120, 40)
       doc.text(`ID Cliente: ${ventaData.DocumentoCliente || "N/A"}`, 120, 48)
@@ -629,7 +631,7 @@ export function NuevaVenta() {
       doc.setFontSize(11)
       doc.text(
         `Método de pago: ${
-          ventaData.TPago === "TARJETA" ? "Tarjeta" : ventaData.TPago === "EFECTIVO" ? "Efectivo" : "Credito"
+          ventaData.TPago === "TARJETA" ? "Tarjeta" : ventaData.TPago === "EFECTIVO" ? "Efectivo" : ventaData.TPago === "CREDITO" ? "Credito" : "Efectivo/Tarjeta"
         }`,
         14,
         finalTotalsY + 15,
@@ -883,7 +885,7 @@ export function NuevaVenta() {
 
       // Imprimir comprobante después de guardar
       if (venta.estatus === "COMPLETADO") {
-        await imprimirComprobante(ventaData, detallesData)
+        await imprimirComprobante(ventaData, detallesData, !!clienteSeleccionado?.EmpleadoRequerido)
       }
 
       // Redirigir después de un breve retraso
@@ -1364,6 +1366,7 @@ export function NuevaVenta() {
               <Group mt="xs">
                 <Radio value="EFECTIVO" label="Efectivo" disabled={clienteSeleccionado?.RequiereNumeroEmpleado} />
                 <Radio value="TARJETA" label="Tarjeta" disabled={clienteSeleccionado?.RequiereNumeroEmpleado} />
+                <Radio value="EFECTIVO/TARJETA" label="Efectivo/Tarjeta" disabled={clienteSeleccionado?.RequiereNumeroEmpleado} />
                 <Radio value="CREDITO" label="Crédito" />
               </Group>
             </Radio.Group>
@@ -1568,7 +1571,7 @@ export function NuevaVenta() {
                             </td>
                             <td>$ {Number.parseFloat(producto.PrecioVenta).toFixed(2)}</td>
                             <td>
-                              <Badge color={Number.parseInt(producto.Stock) <= 10 ? "orange" : "green"} variant="light">
+                              <Badge color={Number.parseInt(producto.Stock) <= 5 ? "orange" : "green"} variant="light">
                                 {producto.Stock}
                               </Badge>
                             </td>

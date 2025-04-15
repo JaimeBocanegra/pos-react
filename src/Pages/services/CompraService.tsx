@@ -63,6 +63,20 @@ export const obtenerDetallesCompra = async (idCompra: number) => {
   return data || []
 }
 
+// NUEVA FUNCIÓN OPTIMIZADA: Obtener detalles de múltiples compras a la vez
+export const obtenerDetallesCompraMultiple = async (idsCompra: number[]) => {
+  if (!idsCompra.length) return []
+
+  const { data, error } = await supabase.from("DETALLE_COMPRA").select("*").in("IdCompra", idsCompra)
+
+  if (error) {
+    console.error("Error al obtener detalles de compras múltiples:", error)
+    throw error
+  }
+
+  return data || []
+}
+
 // Crear una nueva compra
 export const crearCompra = async (compra: Compra, detalles: Omit<DetalleCompra, "IdCompra">[]) => {
   // 1. Insertar encabezado de compra
@@ -110,34 +124,33 @@ export const crearCompra = async (compra: Compra, detalles: Omit<DetalleCompra, 
 
 // Eliminar una compra
 export const eliminarCompra = async (idCompra: number, reducirStock = false) => {
-    const { error } = await supabase
-      .from('COMPRA')
-      .update({ Activo: false })
-      .eq('IdCompra', idCompra)
-      .select('*, DETALLE_COMPRA(*, Productos(*))');
-  
-    if (error) throw error;
-  
-    if (reducirStock) {
-      const { data: compra } = await supabase
-        .from('COMPRA')
-        .select('*, DETALLE_COMPRA(*, Productos(*))')
-        .eq('IdCompra', idCompra)
-        .single();
-  
-      if (!compra) throw new Error('Compra no encontrada');
-  
-      for (const detalle of compra.DETALLE_COMPRA) {
-        const nuevoStock = Math.max(0, detalle.Productos.Stock - detalle.Cantidad);
-        const { error: stockError } = await supabase
-          .from('Productos')
-          .update({ Stock: nuevoStock })
-          .eq('Id_producto', detalle.IdProducto);
-  
-        if (stockError) throw stockError;
-      }
+  const { error } = await supabase
+    .from("COMPRA")
+    .update({ Activo: false })
+    .eq("IdCompra", idCompra)
+    .select("*, DETALLE_COMPRA(*, Productos(*))")
+
+  if (error) throw error
+
+  if (reducirStock) {
+    const { data: compra } = await supabase
+      .from("COMPRA")
+      .select("*, DETALLE_COMPRA(*, Productos(*))")
+      .eq("IdCompra", idCompra)
+      .single()
+
+    if (!compra) throw new Error("Compra no encontrada")
+
+    for (const detalle of compra.DETALLE_COMPRA) {
+      const nuevoStock = Math.max(0, detalle.Productos.Stock - detalle.Cantidad)
+      const { error: stockError } = await supabase
+        .from("Productos")
+        .update({ Stock: nuevoStock })
+        .eq("Id_producto", detalle.IdProducto)
+
+      if (stockError) throw stockError
     }
-  
-    return true;
-  };
-  
+  }
+
+  return true
+}
