@@ -30,6 +30,8 @@ import Configuraciones from "./Pages/Configuraciones/Configuraciones"
 import EditarConfiguracion from "./Pages/Configuraciones/EditConfiguracion"
 import NewConfiguracion from "./Pages/Configuraciones/NewConfiguracion"
 import { ContinuarVenta } from "./Pages/Ventas/ContinuarVenta"
+// Importamos el nuevo componente de Reportes
+import Reportes from "./Pages/Reportes/Reportes"
 
 function App() {
   return (
@@ -68,6 +70,8 @@ function App() {
               <Route path="nueva" element={<NewConfiguracion />} />
               <Route path=":id/editar" element={<EditarConfiguracion />} />
             </Route>
+            {/* Nueva ruta para Reportes */}
+            <Route path="reportes" element={<Reportes />} />
           </Route>
         </Route>
         <Route path="*" element={<NotFound />} />

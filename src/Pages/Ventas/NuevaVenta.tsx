@@ -36,7 +36,6 @@ import {
   IconAlertCircle,
   IconBarcode,
   IconCash,
-  IconDiscount,
   IconPercentage,
   IconPackage,
   IconReceipt2,
@@ -72,9 +71,10 @@ interface DetalleVentaForm {
   PrecioVenta: number
   PrecioOriginal: number // Solo para uso interno, no se guarda en BD
   Cantidad: number
-  DescuentoP: string
+  DescuentoP: number // Cambiado a number para facilitar cálculos
   SubTotal: number
   PrecioModificado: boolean // Solo para uso interno, no se guarda en BD
+  DescuentoMonto: number // Nuevo campo para guardar el monto del descuento
 }
 
 // Interfaz para la venta según la estructura de la tabla VENTA
@@ -277,8 +277,8 @@ export function NuevaVenta() {
     setEditandoPrecio(false)
   }
 
-  // Calcular subtotal con descuento
-  const calcularSubtotal = (
+  // Calcular subtotal y descuento según las reglas
+  const calcularSubtotalYDescuento = (
     precio: number,
     cantidad: number,
     descuentoPorcentaje: number,
@@ -286,13 +286,21 @@ export function NuevaVenta() {
   ) => {
     const subtotalSinDescuento = precio * cantidad
 
-    // Si el precio fue modificado o hay descuento general, no aplicar descuento por producto
-    if (precioModificado || venta.porcentaje > 0) {
-      return subtotalSinDescuento
+    // Si el precio fue modificado, no aplicar descuento por producto
+    if (precioModificado) {
+      return {
+        subtotal: subtotalSinDescuento,
+        descuentoMonto: 0,
+      }
     }
 
+    // Calcular el monto del descuento
     const descuentoMonto = (subtotalSinDescuento * descuentoPorcentaje) / 100
-    return subtotalSinDescuento - descuentoMonto
+
+    return {
+      subtotal: subtotalSinDescuento - descuentoMonto,
+      descuentoMonto: descuentoMonto,
+    }
   }
 
   // Agregar producto a la venta
@@ -321,13 +329,9 @@ export function NuevaVenta() {
 
     // Si el precio está modificado, no permitir descuento
     if (isPrecioModificado && descuentoPorcentaje > 0) {
-      setError("No se puede aplicar descuento a un producto con precio modificado. Por favor, elija solo una opción: modificar precio o aplicar descuento.")
-      return
-    }
-
-    // Si hay descuento general y se intenta aplicar descuento por producto
-    if (venta.porcentaje > 0 && descuentoPorcentaje > 0) {
-      setError("No se puede aplicar descuento por producto cuando hay descuento general")
+      setError(
+        "No se puede aplicar descuento a un producto con precio modificado. Por favor, elija solo una opción: modificar precio o aplicar descuento.",
+      )
       return
     }
 
@@ -336,7 +340,7 @@ export function NuevaVenta() {
       (detalle) =>
         detalle.IdProducto === productoSeleccionado.Id_producto &&
         ((isPrecioModificado && detalle.PrecioModificado && detalle.PrecioVenta === precioVentaFinal) ||
-          (!isPrecioModificado && !detalle.PrecioModificado && detalle.DescuentoP === descuentoPorcentaje.toString())),
+          (!isPrecioModificado && !detalle.PrecioModificado && detalle.DescuentoP === descuentoPorcentaje)),
     )
 
     if (productoExistente) {
@@ -352,10 +356,10 @@ export function NuevaVenta() {
       // Actualizar cantidad si ya existe con el mismo precio y descuento
       const nuevosDetalles = detallesVenta.map((detalle) => {
         if (detalle === productoExistente) {
-          const subtotal = calcularSubtotal(
+          const { subtotal, descuentoMonto } = calcularSubtotalYDescuento(
             detalle.PrecioVenta,
             nuevaCantidad,
-            Number(detalle.DescuentoP),
+            detalle.DescuentoP,
             detalle.PrecioModificado,
           )
 
@@ -363,6 +367,7 @@ export function NuevaVenta() {
             ...detalle,
             Cantidad: nuevaCantidad,
             SubTotal: subtotal,
+            DescuentoMonto: descuentoMonto,
           }
         }
         return detalle
@@ -383,7 +388,7 @@ export function NuevaVenta() {
 
       // Agregar nuevo producto
       const precioOriginal = Number.parseFloat(productoSeleccionado.PrecioVenta)
-      const subtotal = calcularSubtotal(
+      const { subtotal, descuentoMonto } = calcularSubtotalYDescuento(
         precioVentaFinal,
         cantidad as number,
         isPrecioModificado ? 0 : descuentoPorcentaje,
@@ -399,9 +404,10 @@ export function NuevaVenta() {
         PrecioVenta: precioVentaFinal,
         PrecioOriginal: precioOriginal,
         Cantidad: cantidad as number,
-        DescuentoP: isPrecioModificado ? "0" : descuentoPorcentaje.toString(),
+        DescuentoP: isPrecioModificado ? 0 : descuentoPorcentaje,
         SubTotal: subtotal,
         PrecioModificado: isPrecioModificado,
+        DescuentoMonto: descuentoMonto,
       }
       setDetallesVenta([...detallesVenta, nuevoDetalle])
     }
@@ -511,21 +517,16 @@ export function NuevaVenta() {
       let mostrarDescuentoGeneral = true
 
       if (Number(ventaData.Porcentaje) > 0) {
-        // Si solo hay un producto y tiene precio modificado, no mostrar descuento
-        if (detallesData.length === 1 && detallesData[0].PrecioModificado) {
+        // Calcular el total de productos sin precio modificado y sin descuento individual
+        const totalSinPrecioModificadoYSinDescuento = detallesData
+          .filter((detalle: any) => !detalle.PrecioModificado && Number(detalle.DescuentoP) === 0)
+          .reduce((total: number, detalle: any) => total + Number.parseFloat(detalle.SubTotal || 0), 0)
+
+        descuentoGeneral = (totalSinPrecioModificadoYSinDescuento * Number(ventaData.Porcentaje)) / 100
+
+        // Si no hay productos sin precio modificado y sin descuento individual, no mostrar descuento general
+        if (totalSinPrecioModificadoYSinDescuento === 0) {
           mostrarDescuentoGeneral = false
-        } else {
-          // Calcular el total de productos sin precio modificado
-          const totalSinPrecioModificado = detallesData
-            .filter((detalle: any) => !detalle.PrecioModificado)
-            .reduce((total: number, detalle: any) => total + Number.parseFloat(detalle.SubTotal || 0), 0)
-
-          descuentoGeneral = (totalSinPrecioModificado * Number(ventaData.Porcentaje)) / 100
-
-          // Si no hay productos sin precio modificado, no mostrar descuento
-          if (totalSinPrecioModificado === 0) {
-            mostrarDescuentoGeneral = false
-          }
         }
       } else {
         mostrarDescuentoGeneral = false
@@ -710,15 +711,18 @@ export function NuevaVenta() {
 
     // Actualizar la cantidad y recalcular el subtotal
     const nuevosDetalles = [...detallesVenta]
+    const { subtotal, descuentoMonto } = calcularSubtotalYDescuento(
+      producto.PrecioVenta,
+      nuevaCantidad,
+      producto.DescuentoP,
+      producto.PrecioModificado,
+    )
+
     nuevosDetalles[index] = {
       ...producto,
       Cantidad: nuevaCantidad,
-      SubTotal: calcularSubtotal(
-        producto.PrecioVenta,
-        nuevaCantidad,
-        Number(producto.DescuentoP),
-        producto.PrecioModificado,
-      ),
+      SubTotal: subtotal,
+      DescuentoMonto: descuentoMonto,
     }
 
     setDetallesVenta(nuevosDetalles)
@@ -728,21 +732,24 @@ export function NuevaVenta() {
   const totalVenta = detallesVenta.reduce((total, detalle) => total + detalle.SubTotal, 0)
 
   // Calcular total con descuento general y IVA
+  // Modificar la función calcularTotalSinPrecioModificado para excluir productos con descuento individual
+  const calcularTotalSinPrecioModificado = () => {
+    return detallesVenta
+      .filter((detalle) => !detalle.PrecioModificado && detalle.DescuentoP === 0)
+      .reduce((total, detalle) => total + detalle.SubTotal, 0)
+  }
+
+  // Modificar la función calcularSubtotalSinDescuentos para calcular el subtotal total before descuento general
   const calcularSubtotalSinDescuentos = () => {
     return detallesVenta.reduce((total, detalle) => total + detalle.SubTotal, 0)
   }
 
-  const calcularTotalSinPrecioModificado = () => {
-    return detallesVenta
-      .filter((detalle) => !detalle.PrecioModificado)
-      .reduce((total, detalle) => total + detalle.SubTotal, 0)
-  }
-
+  // Modificar la función calcularDescuentoGeneral para aplicar solo a productos sin descuento individual
   const calcularDescuentoGeneral = () => {
     if (venta.porcentaje <= 0) return 0
 
-    const totalSinModificar = calcularTotalSinPrecioModificado()
-    return (totalSinModificar * venta.porcentaje) / 100
+    const totalSinModificarYSinDescuento = calcularTotalSinPrecioModificado()
+    return (totalSinModificarYSinDescuento * venta.porcentaje) / 100
   }
 
   const calcularSubtotalConDescuento = () => {
@@ -831,13 +838,16 @@ export function NuevaVenta() {
     try {
       // Preparar datos para el servicio
       const cambio = calcularCambio().toString()
+      const cproductos = detallesVenta.reduce((acc, detalle) => {
+        return acc + Number(detalle.Cantidad);
+      }, 0);
       const ventaData = {
         NumeroDocumento: venta.numeroDocumento,
         FechaRegistro: venta.fechaRegistro.toISOString(),
         UsuarioRegistro: venta.usuarioRegistro,
         DocumentoCliente: venta.documentoCliente,
         NombreCliente: venta.nombreCliente,
-        CantidadProductos: detallesVenta.length.toString(),
+        CantidadProductos: cproductos,
         MontoTotal: totalFinal.toString(),
         PagoCon: venta.pagoCon || "0",
         Cambio: cambio,
@@ -860,10 +870,10 @@ export function NuevaVenta() {
         PrecioVenta: detalle.PrecioVenta.toString(),
         Cantidad: detalle.Cantidad,
         SubTotal: detalle.SubTotal.toString(),
-        DescuentoP: detalle.DescuentoP,
+        DescuentoP: detalle.DescuentoP, // Guardar el monto del descuento
+        PrecioModificado: detalle.PrecioModificado,
         // Campos internos para el comprobante pero no para la BD
-        // PrecioModificado: detalle.PrecioModificado,
-        // PrecioOriginal: detalle.PrecioOriginal.toString(),
+        //PrecioOriginal: detalle.PrecioOriginal.toString(),
       }))
 
       // Llamar al servicio para crear la venta
@@ -907,7 +917,7 @@ export function NuevaVenta() {
 
       // Verificar si el producto ya está en la lista con precio normal (sin modificar y sin descuento)
       const productoExistente = detallesVenta.find(
-        (d) => d.IdProducto === productoEncontrado.Id_producto && !d.PrecioModificado && d.DescuentoP === "0",
+        (d) => d.IdProducto === productoEncontrado.Id_producto && !d.PrecioModificado && d.DescuentoP === 0,
       )
 
       if (productoExistente) {
@@ -926,16 +936,17 @@ export function NuevaVenta() {
         const nuevosDetalles = detallesVenta.map((detalle) => {
           if (detalle === productoExistente) {
             const nuevaCantidad = detalle.Cantidad + 1
-            const subtotal = calcularSubtotal(
+            const { subtotal, descuentoMonto } = calcularSubtotalYDescuento(
               detalle.PrecioVenta,
               nuevaCantidad,
-              Number(detalle.DescuentoP),
+              detalle.DescuentoP,
               detalle.PrecioModificado,
             )
             return {
               ...detalle,
               Cantidad: nuevaCantidad,
               SubTotal: subtotal,
+              DescuentoMonto: descuentoMonto,
             }
           }
           return detalle
@@ -959,7 +970,7 @@ export function NuevaVenta() {
 
         // Agregar nuevo producto
         const precioVenta = Number.parseFloat(productoEncontrado.PrecioVenta)
-        const subtotal = calcularSubtotal(precioVenta, 1, 0, false)
+        const { subtotal, descuentoMonto } = calcularSubtotalYDescuento(precioVenta, 1, 0, false)
 
         const nuevoDetalle: DetalleVentaForm = {
           IdProducto: productoEncontrado.Id_producto,
@@ -970,9 +981,10 @@ export function NuevaVenta() {
           PrecioVenta: precioVenta,
           PrecioOriginal: precioVenta,
           Cantidad: 1,
-          DescuentoP: "0",
+          DescuentoP: 0,
           SubTotal: subtotal,
           PrecioModificado: false,
+          DescuentoMonto: descuentoMonto,
         }
         setDetallesVenta([...detallesVenta, nuevoDetalle])
 
@@ -1072,9 +1084,9 @@ export function NuevaVenta() {
   const editarPrecioProducto = (index: number) => {
     const producto = detallesVenta[index]
     if (!producto) return
-    
+
     // Si el producto tiene descuento, mostrar advertencia pero permitir continuar
-    if (Number(producto.DescuentoP) > 0) {
+    if (producto.DescuentoP > 0) {
       Swal.fire({
         icon: "warning",
         title: "Advertencia",
@@ -1084,11 +1096,11 @@ export function NuevaVenta() {
         cancelButtonText: "Cancelar",
       }).then((result) => {
         if (result.isConfirmed) {
-          mostrarDialogoEditarPrecio(producto, index);
+          mostrarDialogoEditarPrecio(producto, index)
         }
-      });
+      })
     } else {
-      mostrarDialogoEditarPrecio(producto, index);
+      mostrarDialogoEditarPrecio(producto, index)
     }
   }
 
@@ -1114,16 +1126,17 @@ export function NuevaVenta() {
         const nuevoPrecio = Number(result.value)
 
         // Actualizar el precio del producto SOLO para el índice específico
-        const nuevosDetalles = [...detallesVenta];
-        const subtotal = nuevoPrecio * producto.Cantidad;
-        
+        const nuevosDetalles = [...detallesVenta]
+        const subtotal = nuevoPrecio * producto.Cantidad
+
         nuevosDetalles[index] = {
           ...producto,
           PrecioVenta: nuevoPrecio,
-          DescuentoP: "0", // Eliminar cualquier descuento existente
+          DescuentoP: 0, // Eliminar cualquier descuento existente
           SubTotal: subtotal,
           PrecioModificado: true,
-        };
+          DescuentoMonto: 0,
+        }
 
         setDetallesVenta(nuevosDetalles)
 
@@ -1144,7 +1157,7 @@ export function NuevaVenta() {
   const editarDescuentoProducto = (index: number) => {
     const producto = detallesVenta[index]
     if (!producto) return
-    
+
     // Si el producto tiene precio modificado, mostrar advertencia pero permitir continuar
     if (producto.PrecioModificado) {
       Swal.fire({
@@ -1156,11 +1169,11 @@ export function NuevaVenta() {
         cancelButtonText: "Cancelar",
       }).then((result) => {
         if (result.isConfirmed) {
-          mostrarDialogoEditarDescuento(producto, index);
+          mostrarDialogoEditarDescuento(producto, index)
         }
-      });
+      })
     } else {
-      mostrarDialogoEditarDescuento(producto, index);
+      mostrarDialogoEditarDescuento(producto, index)
     }
   }
 
@@ -1171,7 +1184,7 @@ export function NuevaVenta() {
       text: `Producto: ${producto.DescripcionProducto}`,
       input: "number",
       inputLabel: "Porcentaje de descuento",
-      inputValue: Number(producto.DescuentoP),
+      inputValue: producto.DescuentoP,
       showCancelButton: true,
       confirmButtonText: "Guardar",
       cancelButtonText: "Cancelar",
@@ -1188,26 +1201,27 @@ export function NuevaVenta() {
     }).then((result) => {
       if (result.isConfirmed) {
         const nuevoDescuento = Number(result.value)
-        
+
         // Actualizar el descuento del producto SOLO para el índice específico
-        const nuevosDetalles = [...detallesVenta];
-        
+        const nuevosDetalles = [...detallesVenta]
+
         // Si tenía precio modificado, restaurar al precio original
-        const precioAUsar = producto.PrecioModificado ? producto.PrecioOriginal : producto.PrecioVenta;
-        const subtotal = calcularSubtotal(
+        const precioAUsar = producto.PrecioModificado ? producto.PrecioOriginal : producto.PrecioVenta
+        const { subtotal, descuentoMonto } = calcularSubtotalYDescuento(
           precioAUsar,
           producto.Cantidad,
           nuevoDescuento,
-          false // Ya no tiene precio modificado
-        );
-        
+          false, // Ya no tiene precio modificado
+        )
+
         nuevosDetalles[index] = {
           ...producto,
           PrecioVenta: precioAUsar,
-          DescuentoP: nuevoDescuento.toString(),
+          DescuentoP: nuevoDescuento,
           SubTotal: subtotal,
           PrecioModificado: false,
-        };
+          DescuentoMonto: descuentoMonto,
+        }
 
         setDetallesVenta(nuevosDetalles)
 
@@ -1393,29 +1407,15 @@ export function NuevaVenta() {
               disabled={clienteSeleccionado?.Iva}
             />
 
+            {/* Modificar la función NumberInput para el descuento general para permitir descuentos individuales */}
             <NumberInput
               label="Descuento General (%)"
               placeholder="Porcentaje de descuento"
               value={venta.porcentaje}
               onChange={(val) => {
                 const nuevoValor = val === "" ? 0 : Number(val)
-                // Si hay productos con descuento por producto y se intenta aplicar descuento general
-                if (nuevoValor > 0 && detallesVenta.some((d) => Number(d.DescuentoP) > 0)) {
-                  Swal.fire({
-                    icon: "warning",
-                    title: "Advertencia",
-                    text: "Hay productos con descuento individual. Si aplica descuento general, se ignorarán los descuentos por producto.",
-                    showCancelButton: true,
-                    confirmButtonText: "Continuar",
-                    cancelButtonText: "Cancelar",
-                  }).then((result) => {
-                    if (result.isConfirmed) {
-                      setVenta({ ...venta, porcentaje: nuevoValor })
-                    }
-                  })
-                } else {
-                  setVenta({ ...venta, porcentaje: nuevoValor })
-                }
+                // Ya no mostrar advertencia si hay productos con descuento individual
+                setVenta({ ...venta, porcentaje: nuevoValor })
               }}
               min={0}
               max={100}
@@ -1741,7 +1741,6 @@ export function NuevaVenta() {
                     max={100}
                     step={5}
                     icon={<IconPercentage size={16} />}
-                    disabled={venta.porcentaje > 0}
                   />
                 )}
 
@@ -1781,6 +1780,7 @@ export function NuevaVenta() {
           ) : (
             <>
               <ScrollArea h={200} mb="md">
+                {/* Modificar la tabla de productos para mostrar mejor la información de descuentos */}
                 <Table striped highlightOnHover>
                   <thead>
                     <tr>
@@ -1789,6 +1789,7 @@ export function NuevaVenta() {
                       <th>Precio</th>
                       <th>Cantidad</th>
                       <th>Descuento</th>
+                      <th>Precio Final</th>
                       <th>Subtotal</th>
                       <th>Acción</th>
                     </tr>
@@ -1796,40 +1797,36 @@ export function NuevaVenta() {
                   <tbody>
                     {detallesVenta.map((detalle, index) => (
                       <tr key={`${detalle.IdProducto}-${index}`}>
-                      <td>{detalle.CodigoProducto}</td>
-                      <td>{detalle.DescripcionProducto}</td>
-                      <td>
-                        $ {detalle.PrecioVenta.toFixed(2)}
-                        {detalle.PrecioModificado && (
-                          <Badge color="yellow" size="xs" ml={5}>
-                            Precio modificado
-                          </Badge>
-                        )}
-                      </td>
-                      <td>
-                        <Group spacing={5} noWrap>
-                          <ActionIcon
-                            size="xs"
-                            color="red"
-                            variant="light"
-                            onClick={() => modificarCantidadProducto(index, Math.max(0, detalle.Cantidad - 1))}
-                          >
-                            -
-                          </ActionIcon>
-                          <Text>{detalle.Cantidad}</Text>
-                          <ActionIcon
-                            size="xs"
-                            color="green"
-                            variant="light"
-                            onClick={() => modificarCantidadProducto(index, detalle.Cantidad + 1)}
-                          >
-                            +
-                          </ActionIcon>
-                        </Group>
-                      </td>
-                      <td>
-                        {
-                          Number(detalle.DescuentoP) > 0 ? (
+                        <td>{detalle.CodigoProducto}</td>
+                        <td>{detalle.DescripcionProducto}</td>
+                        <td>$ {detalle.PrecioOriginal.toFixed(2)}</td>
+                        <td>
+                          <Group spacing={5} noWrap>
+                            <ActionIcon
+                              size="xs"
+                              color="red"
+                              variant="light"
+                              onClick={() => modificarCantidadProducto(index, Math.max(0, detalle.Cantidad - 1))}
+                            >
+                              -
+                            </ActionIcon>
+                            <Text>{detalle.Cantidad}</Text>
+                            <ActionIcon
+                              size="xs"
+                              color="green"
+                              variant="light"
+                              onClick={() => modificarCantidadProducto(index, detalle.Cantidad + 1)}
+                            >
+                              +
+                            </ActionIcon>
+                          </Group>
+                        </td>
+                        <td>
+                          {detalle.PrecioModificado ? (
+                            <Badge color="yellow" size="xs">
+                              Modificado
+                            </Badge>
+                          ) : detalle.DescuentoP > 0 ? (
                             <Badge color="orange" size="xs">
                               {detalle.DescuentoP}%
                             </Badge>
@@ -1837,56 +1834,81 @@ export function NuevaVenta() {
                             <Text size="xs" color="dimmed">
                               Sin descuento
                             </Text>
-                          )
-                        }
-                      </td>
-                      <td>$ {detalle.SubTotal.toFixed(2)}</td>
-                      <td>
-                        <Group spacing={5} noWrap>
-                          <Tooltip label="Editar precio">
-                            <ActionIcon
-                              size="xs"
-                              color="blue"
-                              variant="light"
-                              onClick={() => editarPrecioProducto(index)}
-                            >
-                              <IconEdit size="0.8rem" />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label="Editar descuento">
-                            <ActionIcon
-                              size="xs"
-                              color="blue"
-                              variant="light"
-                              onClick={() => editarDescuentoProducto(index)}
-                            >
-                              <IconPercentage size="0.8rem" />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label="Eliminar producto">
-                            <ActionIcon
-                              size="xs"
-                              color="red"
-                              variant="light"
-                              onClick={() => eliminarProducto(index)}
-                            >
-                              <IconTrash size="0.8rem" />
-                            </ActionIcon>
-                          </Tooltip>
-                        </Group>
-                      </td>
-                    </tr>
+                          )}
+                        </td>
+                        <td>$ {detalle.PrecioModificado ? (detalle.SubTotal.toFixed(2)) : (((detalle.PrecioVenta * detalle.Cantidad) * (detalle.DescuentoP / 100)).toFixed(2))}</td>
+                        <td>$ {detalle.SubTotal.toFixed(2)}</td>
+                        <td>
+                          <Group spacing={5} noWrap>
+                            <Tooltip label="Editar precio">
+                              <ActionIcon
+                                size="xs"
+                                color="blue"
+                                variant="light"
+                                onClick={() => editarPrecioProducto(index)}
+                              >
+                                <IconEdit size="0.8rem" />
+                              </ActionIcon>
+                            </Tooltip>
+                            <Tooltip label="Editar descuento">
+                              <ActionIcon
+                                size="xs"
+                                color="blue"
+                                variant="light"
+                                onClick={() => editarDescuentoProducto(index)}
+                              >
+                                <IconPercentage size="0.8rem" />
+                              </ActionIcon>
+                            </Tooltip>
+                            <Tooltip label="Eliminar producto">
+                              <ActionIcon size="xs" color="red" variant="light" onClick={() => eliminarProducto(index)}>
+                                <IconTrash size="0.8rem" />
+                              </ActionIcon>
+                            </Tooltip>
+                          </Group>
+                        </td>
+                      </tr>
                     ))}
                   </tbody>
                 </Table>
               </ScrollArea>
 
+              {/* Modificar el desglose de precios para mostrar la información correcta */}
               <Divider mb="md" />
 
-              <Flex justify="space-between" align="center" mb="md">
-                <Title order={5}>Total:</Title>
-                <Title order={5}>$ {calcularTotalConDescuentoGeneral().toFixed(2)}</Title>
-              </Flex>
+              <Box mb="md">
+                <Group position="apart" mb="xs">
+                  <Text>Subtotal:</Text>
+                  <Text>$ {calcularSubtotalSinDescuentos().toFixed(2)}</Text>
+                </Group>
+
+                {venta.porcentaje > 0 && calcularDescuentoGeneral() > 0 && (
+                  <>
+                    <Group position="apart" mb="xs">
+                      <Text>Descuento general ({venta.porcentaje}%):</Text>
+                      <Text color="red">- $ {calcularDescuentoGeneral().toFixed(2)}</Text>
+                    </Group>
+                    <Group position="apart" mb="xs">
+                      <Text>Subtotal con descuento:</Text>
+                      <Text>$ {calcularSubtotalConDescuento().toFixed(2)}</Text>
+                    </Group>
+                  </>
+                )}
+
+                {venta.iva > 0 && (
+                  <Group position="apart" mb="xs">
+                    <Text>IVA ({venta.iva}%):</Text>
+                    <Text>$ {calcularIVA().toFixed(2)}</Text>
+                  </Group>
+                )}
+
+                <Group position="apart">
+                  <Text weight={700}>Total:</Text>
+                  <Text weight={700} size="lg">
+                    $ {calcularTotalConDescuentoGeneral().toFixed(2)}
+                  </Text>
+                </Group>
+              </Box>
 
               <Group position="right">
                 <Button variant="outline" color="red" onClick={() => navigate(-1)}>

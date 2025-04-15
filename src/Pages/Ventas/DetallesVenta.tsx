@@ -100,7 +100,6 @@ export function DetalleVenta() {
         // Agregar campos para compatibilidad con la vista de nueva venta
         const detallesConCamposAdicionales = detallesData.map((detalle) => ({
           ...detalle,
-          PrecioModificado: false, // Por defecto asumimos que no hay precios modificados
           PrecioOriginal: detalle.PrecioVenta, // Por defecto el precio original es el mismo que el de venta
         }));
 
@@ -252,8 +251,9 @@ export function DetalleVenta() {
     if (!venta || Number(venta.Porcentaje) <= 0) return 0;
 
     const totalSinPrecioModificado = detalles
-      .filter((detalle) => !detalle.PrecioModificado)
-      .reduce((total, detalle) => total + Number(detalle.SubTotal), 0);
+  .filter((detalle) => !detalle.PrecioModificado && detalle.DescuentoP === 0)
+  .reduce((total, detalle) => total + Number(detalle.SubTotal), 0);
+
 
     return (totalSinPrecioModificado * Number(venta.Porcentaje)) / 100;
   };
@@ -367,24 +367,26 @@ export function DetalleVenta() {
       let descuentoGeneral = 0;
       let mostrarDescuentoGeneral = true;
 
-      if (Number(ventaData.Porcentaje) > 0) {
+      if (Number(venta.Porcentaje) > 0) {
         // Si solo hay un producto y tiene precio modificado, no mostrar descuento
-        if (detallesData.length === 1 && detallesData[0].PrecioModificado) {
+        if (detalles.length === 1 && detalles[0].PrecioModificado) {
           mostrarDescuentoGeneral = false;
         } else {
-          // Calcular el total de productos sin precio modificado
-          const totalSinPrecioModificado = detallesData
-            .filter((detalle: any) => !detalle.PrecioModificado)
+          // Calcular el total de productos sin precio modificado y sin descuento individual
+          const totalSinPrecioModificado = detalles
+            .filter(
+              (detalle: any) =>
+                !detalle.PrecioModificado && Number(detalle.DescuentoP) === 0
+            )
             .reduce(
               (total: number, detalle: any) =>
                 total + Number.parseFloat(detalle.SubTotal || 0),
               0
             );
-
           descuentoGeneral =
-            (totalSinPrecioModificado * Number(ventaData.Porcentaje)) / 100;
-
-          // Si no hay productos sin precio modificado, no mostrar descuento
+            (totalSinPrecioModificado * Number(venta.Porcentaje)) / 100;
+      
+          // Si no hay productos válidos para aplicar descuento general, no lo mostramos
           if (totalSinPrecioModificado === 0) {
             mostrarDescuentoGeneral = false;
           }
@@ -392,16 +394,15 @@ export function DetalleVenta() {
       } else {
         mostrarDescuentoGeneral = false;
       }
-
       // Calcular subtotal con descuento
       const subtotalConDescuento = mostrarDescuentoGeneral
         ? subtotal - descuentoGeneral
         : subtotal;
 
       // Calcular IVA sobre el subtotal con descuento
-      const iva = Math.round(
+      const iva = 
         (subtotalConDescuento * Number(ventaData.Iva || 0)) / 100
-      );
+      ;
 
       // Calcular total final (subtotal con descuento + IVA)
       const totalFinal = subtotalConDescuento + iva;
@@ -665,7 +666,7 @@ export function DetalleVenta() {
         0
       );
 
-      // Calcular descuento general si existe
+       // Calcular descuento general si existe
       let descuentoGeneral = 0;
       let mostrarDescuentoGeneral = true;
 
@@ -674,19 +675,21 @@ export function DetalleVenta() {
         if (detalles.length === 1 && detalles[0].PrecioModificado) {
           mostrarDescuentoGeneral = false;
         } else {
-          // Calcular el total de productos sin precio modificado
+          // Calcular el total de productos sin precio modificado y sin descuento individual
           const totalSinPrecioModificado = detalles
-            .filter((detalle: any) => !detalle.PrecioModificado)
+            .filter(
+              (detalle: any) =>
+                !detalle.PrecioModificado && Number(detalle.DescuentoP) === 0
+            )
             .reduce(
               (total: number, detalle: any) =>
                 total + Number.parseFloat(detalle.SubTotal || 0),
               0
             );
-
           descuentoGeneral =
             (totalSinPrecioModificado * Number(venta.Porcentaje)) / 100;
-
-          // Si no hay productos sin precio modificado, no mostrar descuento
+      
+          // Si no hay productos válidos para aplicar descuento general, no lo mostramos
           if (totalSinPrecioModificado === 0) {
             mostrarDescuentoGeneral = false;
           }
@@ -694,11 +697,18 @@ export function DetalleVenta() {
       } else {
         mostrarDescuentoGeneral = false;
       }
+      // Calcular subtotal con descuento
+      const subtotalConDescuento = mostrarDescuentoGeneral
+        ? subtotal - descuentoGeneral
+        : subtotal;
 
-      // Calcular IVA
-      const iva = Math.round(
-        (Number(venta.MontoTotal) * Number(venta.Iva || 0)) / 100
-      );
+      // Calcular IVA sobre el subtotal con descuento
+      const iva = 
+        (subtotalConDescuento * Number(venta.Iva || 0)) / 100
+      ;
+
+      // Calcular total final (subtotal con descuento + IVA)
+      const totalFinal = subtotalConDescuento + iva;
 
       // Tabla de productos
       const tableColumn = [
@@ -712,7 +722,6 @@ export function DetalleVenta() {
 
       // Filas de productos
       const tableRows = detalles.map((detalle: any) => {
-        // Para productos con descuento individual, mostrar precio original y descuento
         if (Number(detalle.DescuentoP) > 0 && !detalle.PrecioModificado) {
           const precioOriginal = Number.parseFloat(
             detalle.PrecioOriginal || detalle.PrecioVenta
@@ -757,6 +766,14 @@ export function DetalleVenta() {
           "",
           `Descuento (${venta.Porcentaje}%):`,
           `- $ ${descuentoGeneral.toFixed(2)}`,
+        ]);
+        totalRows.push([
+          "",
+          "",
+          "",
+          "",
+          "Subtotal con descuento:",
+          `$ ${subtotalConDescuento.toFixed(2)}`,
         ]);
       }
 
