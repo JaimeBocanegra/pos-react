@@ -23,6 +23,10 @@ import {
   Tabs,
   Radio,
   Switch,
+  Modal,
+  SegmentedControl,
+  Stack,
+  List,
 } from "@mantine/core"
 import {
   IconArrowLeft,
@@ -42,6 +46,8 @@ import {
   IconUserCircle,
   IconEdit,
   IconCurrencyDollar,
+  IconTicket,
+  IconFile,
 } from "@tabler/icons-react"
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
@@ -95,6 +101,7 @@ interface VentaForm {
   numEmpleado: string
   empleado: string
   metodoPago: "EFECTIVO" | "TARJETA" | "CREDITO" | "EFECTIVO/TARJETA"
+  tipoImpresion: "ticket" | "documento" // Nuevo campo para el tipo de impresión
 }
 
 // Interfaz para el cliente con los nuevos campos
@@ -121,6 +128,7 @@ export function NuevaVenta() {
   const barcodeInputRef = useRef<HTMLInputElement>(null)
   const [empresa, setEmpresa] = useState<any>(null)
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ClienteForm | null>(null)
+  const [modalImpresionAbierto, setModalImpresionAbierto] = useState(false)
 
   // Estado para el precio modificado
   const [precioModificado, setPrecioModificado] = useState<number | "">("")
@@ -144,6 +152,7 @@ export function NuevaVenta() {
     numEmpleado: "",
     empleado: "",
     metodoPago: "EFECTIVO",
+    tipoImpresion: "documento", // Por defecto, imprimir documento
   })
 
   // Estado para el producto seleccionado actualmente
@@ -454,7 +463,7 @@ export function NuevaVenta() {
   // Agregar marca de agua si está cancelada
 
   // Modificar la función imprimirComprobante para mostrar correctamente los precios originales y descuentos
-  const imprimirComprobante = async (ventaData: any, detallesData: any ,RequiereEmpelado: boolean) => {
+  const imprimirComprobante = async (ventaData: any, detallesData: any, RequiereEmpelado: boolean) => {
     if (!ventaData || !detallesData.length) return
 
     try {
@@ -496,10 +505,10 @@ export function NuevaVenta() {
 
       // Información de la venta
       doc.setFontSize(12)
-      doc.text(`Venta: ${ventaData.NumeroDocumento || "N/A"}`, 14, 40)
+      doc.text(`Venta: ${ventaData.NumeroDocumento || `${ventaData.IdVenta}` || "N/A"}`, 14, 40)
       doc.text(`Fecha: ${ventaData.FechaRegistro ? formatearFecha(ventaData.FechaRegistro) : "N/A"}`, 14, 48)
       doc.text(`Usuario: ${ventaData.UsuarioRegistro || "Admin"}`, 14, 56)
-      if(RequiereEmpelado) {
+      if (RequiereEmpelado) {
         doc.text(`Empleado: ${ventaData.Empleado || "N/A"}`, 14, 64)
       }
 
@@ -631,7 +640,13 @@ export function NuevaVenta() {
       doc.setFontSize(11)
       doc.text(
         `Método de pago: ${
-          ventaData.TPago === "TARJETA" ? "Tarjeta" : ventaData.TPago === "EFECTIVO" ? "Efectivo" : ventaData.TPago === "CREDITO" ? "Credito" : "Efectivo/Tarjeta"
+          ventaData.TPago === "TARJETA"
+            ? "Tarjeta"
+            : ventaData.TPago === "EFECTIVO"
+              ? "Efectivo"
+              : ventaData.TPago === "CREDITO"
+                ? "Credito"
+                : "Efectivo/Tarjeta"
         }`,
         14,
         finalTotalsY + 15,
@@ -648,7 +663,300 @@ export function NuevaVenta() {
 
       // Pie de página
       doc.setFontSize(10)
-      doc.text(`Documento generado el ${new Date().toLocaleString()}`, 105, 280, { align: "center" })
+      doc.text(`Venta #${ventaData.IdVenta} - Documento generado el ${new Date().toLocaleString()}`, 105, 280, {
+        align: "center",
+      })
+
+      doc.autoPrint()
+      const pdfBlob = doc.output("blob")
+      const pdfUrl = URL.createObjectURL(pdfBlob)
+      const printWindow = window.open(pdfUrl, "_blank")
+
+      // Add event listener to detect when printing is done
+      if (printWindow) {
+        printWindow.addEventListener("afterprint", () => {
+          // Close the window after printing
+          printWindow.close()
+          // Release the URL object
+          URL.revokeObjectURL(pdfUrl)
+
+          Swal.fire({
+            position: "top-end",
+            icon: "success",
+            title: "Documento enviado a impresión",
+            showConfirmButton: false,
+            timer: 1500,
+            toast: true,
+          })
+        })
+
+        // Fallback in case afterprint doesn't trigger
+        setTimeout(() => {
+          URL.revokeObjectURL(pdfUrl)
+        }, 60000) // 1 minute timeout
+      }
+    } catch (error) {
+      console.error("Error al generar PDF para imprimir:", error)
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudo generar el comprobante para impresión",
+      })
+    }
+  }
+
+  // Nueva función para imprimir ticket (formato más compacto para impresoras térmicas)
+  const imprimirTicket = async (ventaData: any, detallesData: any, RequiereEmpelado: boolean) => {
+    if (!ventaData || !detallesData.length) return
+
+    try {
+      // Crear un PDF con dimensiones de ticket térmico (ancho reducido)
+      // Usamos tamaño A7 que es aproximadamente el tamaño de un ticket térmico de 80mm
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [80, 297], // Ancho: 80mm (estándar para tickets térmicos), Alto: variable
+      })
+
+      // Configuración de la empresa
+      const empresaInfo = {
+        nombre: empresa?.nombre || "Mi Empresa",
+        logo: empresa?.logo || "/logo.png",
+        direccion: empresa?.direccion || "Dirección de la empresa",
+        telefono: empresa?.telefono || "123-456-7890",
+      }
+
+      // Centrar el texto para el ticket
+      const centrarTexto = (texto: string, fontSize = 10) => {
+        doc.setFontSize(fontSize)
+        const textWidth = (doc.getStringUnitWidth(texto) * fontSize) / doc.internal.scaleFactor
+        const pageWidth = doc.internal.pageSize.getWidth()
+        const x = (pageWidth - textWidth) / 2
+        return x
+      }
+
+      let yPos = 10 // Posición inicial Y
+
+      // Título del ticket
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "bold")
+      const tituloX = centrarTexto(empresaInfo.nombre, 12)
+      doc.text(empresaInfo.nombre, tituloX, yPos)
+      yPos += 5
+
+      // Información de la empresa
+      doc.setFontSize(8)
+      doc.setFont("helvetica", "normal")
+      const direccionX = centrarTexto(empresaInfo.direccion, 8)
+      doc.text(empresaInfo.direccion, direccionX, yPos)
+      yPos += 4
+
+      const telefonoX = centrarTexto(`Tel: ${empresaInfo.telefono}`, 8)
+      doc.text(`Tel: ${empresaInfo.telefono}`, telefonoX, yPos)
+      yPos += 4
+
+      // Línea separadora
+      doc.setDrawColor(0)
+      doc.setLineWidth(0.1)
+      doc.line(5, yPos, 75, yPos)
+      yPos += 5
+
+      // Información de la venta
+      doc.setFontSize(9)
+      doc.text(`TICKET: ${ventaData.NumeroDocumento || `${ventaData.IdVenta}` || "N/A"}`, 5, yPos)
+      yPos += 4
+
+      doc.text(`FECHA: ${ventaData.FechaRegistro ? formatearFecha(ventaData.FechaRegistro) : "N/A"}`, 5, yPos)
+      yPos += 4
+
+      doc.text(`CLIENTE: ${ventaData.NombreCliente || "N/A"}`, 5, yPos)
+      yPos += 4
+
+      if (RequiereEmpelado) {
+        doc.text(`EMPLEADO: ${ventaData.Empleado || "N/A"}`, 5, yPos)
+        yPos += 4
+      }
+
+      doc.text(
+        `MÉTODO DE PAGO: ${
+          ventaData.TPago === "TARJETA"
+            ? "Tarjeta"
+            : ventaData.TPago === "EFECTIVO"
+              ? "Efectivo"
+              : ventaData.TPago === "CREDITO"
+                ? "Crédito"
+                : "Efectivo/Tarjeta"
+        }`,
+        5,
+        yPos,
+      )
+      yPos += 6
+
+      // Línea separadora
+      doc.setDrawColor(0)
+      doc.setLineWidth(0.1)
+      doc.line(5, yPos, 75, yPos)
+      yPos += 5
+
+      // Encabezados de productos
+      doc.setFont("helvetica", "bold")
+      doc.text("CANT", 5, yPos)
+      doc.text("DESCRIPCIÓN", 15, yPos)
+      doc.text("PRECIO", 45, yPos)
+      doc.text("TOTAL", 70, yPos, { align: "right" })
+      yPos += 4
+
+      // Línea separadora
+      doc.setDrawColor(0)
+      doc.setLineWidth(0.1)
+      doc.line(5, yPos, 75, yPos)
+      yPos += 5
+
+      // Listado de productos
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(8)
+
+      detallesData.forEach((detalle: any) => {
+        // Descripción del producto (posiblemente truncada si es muy larga)
+        const descripcion = detalle.DescripcionProducto || "N/A"
+        const descripcionTruncada =
+          descripcion.length > 20
+            ? descripcion.substring(0, 18) + "\n" + descripcion.substring(18, descripcion.length)
+            : descripcion
+
+        doc.text(detalle.Cantidad.toString(), 5, yPos)
+        doc.text(descripcionTruncada, 15, yPos)
+
+        // Precio con descuento si aplica
+        if (Number(detalle.DescuentoP) > 0 && !detalle.PrecioModificado) {
+          const precioOriginal = Number.parseFloat(detalle.PrecioOriginal || detalle.PrecioVenta)
+          doc.text(`${precioOriginal.toFixed(2)}`, 45, yPos)
+          doc.text(`${Number.parseFloat(detalle.SubTotal || 0).toFixed(2)}`, 70, yPos, { align: "right" })
+          yPos += 6
+          doc.text(`Desc: ${detalle.DescuentoP}%`, 15, yPos)
+          yPos += 4
+        } else {
+          doc.text(`${Number.parseFloat(detalle.PrecioVenta || 0).toFixed(2)}`, 45, yPos)
+          doc.text(`${Number.parseFloat(detalle.SubTotal || 0).toFixed(2)}`, 70, yPos, { align: "right" })
+          yPos += 6
+        }
+      })
+
+      // Línea separadora
+      doc.setDrawColor(0)
+      doc.setLineWidth(0.1)
+      doc.line(5, yPos, 75, yPos)
+      yPos += 5
+
+      // Calcular subtotal (suma de todos los productos)
+      const subtotal = detallesData.reduce(
+        (total: number, detalle: any) => total + Number.parseFloat(detalle.SubTotal || 0),
+        0,
+      )
+
+      // Calcular descuento general si existe
+      let descuentoGeneral = 0
+      let mostrarDescuentoGeneral = true
+
+      if (Number(ventaData.Porcentaje) > 0) {
+        // Calcular el total de productos sin precio modificado y sin descuento individual
+        const totalSinPrecioModificadoYSinDescuento = detallesData
+          .filter((detalle: any) => !detalle.PrecioModificado && Number(detalle.DescuentoP) === 0)
+          .reduce((total: number, detalle: any) => total + Number.parseFloat(detalle.SubTotal || 0), 0)
+
+        descuentoGeneral = (totalSinPrecioModificadoYSinDescuento * Number(ventaData.Porcentaje)) / 100
+
+        // Si no hay productos sin precio modificado y sin descuento individual, no mostrar descuento general
+        if (totalSinPrecioModificadoYSinDescuento === 0) {
+          mostrarDescuentoGeneral = false
+        }
+      } else {
+        mostrarDescuentoGeneral = false
+      }
+
+      // Calcular subtotal con descuento
+      const subtotalConDescuento = mostrarDescuentoGeneral ? subtotal - descuentoGeneral : subtotal
+
+      // Calcular IVA sobre el subtotal con descuento
+      const iva = (subtotalConDescuento * Number(ventaData.Iva || 0)) / 100
+
+      // Calcular total final (subtotal con descuento + IVA)
+      const totalFinal = subtotalConDescuento + iva
+
+      // Totales
+      doc.setFontSize(9)
+      doc.text("SUBTOTAL:", 30, yPos)
+      doc.text(`${subtotal.toFixed(2)}`, 70, yPos, { align: "right" })
+      yPos += 4
+
+      // Agregar descuento general si aplica
+      if (mostrarDescuentoGeneral && descuentoGeneral > 0) {
+        doc.text(`DESC (${ventaData.Porcentaje}%):`, 30, yPos)
+        doc.text(`-${descuentoGeneral.toFixed(2)}`, 70, yPos, { align: "right" })
+        yPos += 4
+
+        doc.text("SUBT C/DESC:", 30, yPos)
+        doc.text(`${subtotalConDescuento.toFixed(2)}`, 70, yPos, { align: "right" })
+        yPos += 4
+      }
+
+      // Agregar IVA si aplica
+      if (Number(ventaData.Iva) > 0) {
+        doc.text(`IVA (${ventaData.Iva}%):`, 30, yPos)
+        doc.text(`${iva.toFixed(2)}`, 70, yPos, { align: "right" })
+        yPos += 4
+      }
+
+      // Total final
+      doc.setFont("helvetica", "bold")
+      doc.text("TOTAL:", 30, yPos)
+      doc.text(`${totalFinal.toFixed(2)}`, 70, yPos, { align: "right" })
+      yPos += 4
+
+      // Información de pago (si es efectivo)
+      if (ventaData.TPago === "EFECTIVO" && ventaData.PagoCon) {
+        doc.setFont("helvetica", "normal")
+        yPos += 2
+        doc.text("PAGÓ CON:", 30, yPos)
+        doc.text(`${Number.parseFloat(ventaData.PagoCon).toFixed(2)}`, 70, yPos, { align: "right" })
+        yPos += 4
+
+        doc.text("CAMBIO:", 30, yPos)
+        doc.text(`${Number.parseFloat(ventaData.Cambio).toFixed(2)}`, 70, yPos, { align: "right" })
+        yPos += 4
+      }
+
+      // Línea separadora
+      yPos += 2
+      doc.setDrawColor(0)
+      doc.setLineWidth(0.1)
+      doc.line(5, yPos, 75, yPos)
+      yPos += 5
+
+      // Mensaje de agradecimiento
+      doc.setFontSize(9)
+      doc.setFont("helvetica", "normal")
+      const graciasX = centrarTexto("¡GRACIAS POR SU COMPRA!", 9)
+      doc.text("¡GRACIAS POR SU COMPRA!", graciasX, yPos)
+      yPos += 4
+
+      // Estado de la venta
+      if (ventaData.Estatus === "CANCELADO") {
+        yPos += 2
+        doc.setFontSize(12)
+        doc.setTextColor(255, 0, 0)
+        doc.setFont("helvetica", "bold")
+        const canceladoX = centrarTexto("*** CANCELADO ***", 12)
+        doc.text("*** CANCELADO ***", canceladoX, yPos)
+        doc.setTextColor(0, 0, 0)
+      }
+
+      // Pie de página
+      yPos += 8
+      doc.setFontSize(7)
+      doc.setFont("helvetica", "normal")
+      const fechaX = centrarTexto(`Venta #${ventaData.IdVenta} - Generado: ${new Date().toLocaleString()}`, 7)
+      doc.text(`Venta #${ventaData.IdVenta} - Generado: ${new Date().toLocaleString()}`, fechaX, yPos)
 
       // Habilitar impresión automática
       doc.autoPrint()
@@ -656,16 +964,37 @@ export function NuevaVenta() {
       // Abrir en nueva ventana para imprimir
       const pdfBlob = doc.output("blob")
       const pdfUrl = URL.createObjectURL(pdfBlob)
-      window.open(pdfUrl, "_blank")
+      const printWindow = window.open(pdfUrl, "_blank")
 
-      // Liberar memoria
-      setTimeout(() => URL.revokeObjectURL(pdfUrl), 100)
+      // Add event listener to detect when printing is done
+      if (printWindow) {
+        printWindow.addEventListener("afterprint", () => {
+          // Close the window after printing
+          printWindow.close()
+          // Release the URL object
+          URL.revokeObjectURL(pdfUrl)
+
+          Swal.fire({
+            position: "top-end",
+            icon: "success",
+            title: "Ticket enviado a impresión",
+            showConfirmButton: false,
+            timer: 1500,
+            toast: true,
+          })
+        })
+
+        // Fallback in case afterprint doesn't trigger
+        setTimeout(() => {
+          URL.revokeObjectURL(pdfUrl)
+        }, 60000) // 1 minute timeout
+      }
     } catch (error) {
-      console.error("Error al generar PDF para imprimir:", error)
+      console.error("Error al generar ticket para imprimir:", error)
       Swal.fire({
         icon: "error",
         title: "Error",
-        text: "No se pudo generar el comprobante para impresión",
+        text: "No se pudo generar el ticket para impresión",
       })
     }
   }
@@ -796,6 +1125,11 @@ export function NuevaVenta() {
     return Math.max(0, pagoCon - totalFinal)
   }
 
+  // Mostrar modal de opciones de impresión
+  const mostrarOpcionesImpresion = () => {
+    setModalImpresionAbierto(true)
+  }
+
   // Guardar venta
   const guardarVenta = async () => {
     if (!venta.nombreCliente) {
@@ -834,6 +1168,13 @@ export function NuevaVenta() {
       return
     }
 
+    // Mostrar opciones de impresión antes de guardar
+    mostrarOpcionesImpresion()
+  }
+
+  // Finalizar la venta después de seleccionar el tipo de impresión
+  const finalizarVenta = async () => {
+    setModalImpresionAbierto(false)
     setLoading(true)
     setError("")
 
@@ -841,8 +1182,8 @@ export function NuevaVenta() {
       // Preparar datos para el servicio
       const cambio = calcularCambio().toString()
       const cproductos = detallesVenta.reduce((acc, detalle) => {
-        return acc + Number(detalle.Cantidad);
-      }, 0);
+        return acc + Number(detalle.Cantidad)
+      }, 0)
       const ventaData = {
         NumeroDocumento: venta.numeroDocumento,
         FechaRegistro: venta.fechaRegistro.toISOString(),
@@ -850,7 +1191,7 @@ export function NuevaVenta() {
         DocumentoCliente: venta.documentoCliente,
         NombreCliente: venta.nombreCliente,
         CantidadProductos: cproductos,
-        MontoTotal: totalFinal.toString(),
+        MontoTotal: calcularTotalConDescuentoGeneral().toString(),
         PagoCon: venta.pagoCon || "0",
         Cambio: cambio,
         Comentario: venta.comentario || "",
@@ -879,13 +1220,23 @@ export function NuevaVenta() {
       }))
 
       // Llamar al servicio para crear la venta
-      await crearVenta(ventaData, detallesData)
+      const { idVenta, venta: ventaCreada } = await crearVenta(ventaData, detallesData)
+
+      // Actualizar el número de documento con el ID de venta generado
+    const ventaprint = {
+      ...ventaCreada,
+      IdVenta: idVenta
+    }
 
       setSuccess(true)
 
       // Imprimir comprobante después de guardar
       if (venta.estatus === "COMPLETADO") {
-        await imprimirComprobante(ventaData, detallesData, !!clienteSeleccionado?.EmpleadoRequerido)
+        if (venta.tipoImpresion === "ticket") {
+          await imprimirTicket(ventaprint, detallesData, !!clienteSeleccionado?.EmpleadoRequerido)
+        } else {
+          await imprimirComprobante(ventaprint, detallesData, !!clienteSeleccionado?.EmpleadoRequerido)
+        }
       }
 
       // Redirigir después de un breve retraso
@@ -1366,7 +1717,11 @@ export function NuevaVenta() {
               <Group mt="xs">
                 <Radio value="EFECTIVO" label="Efectivo" disabled={clienteSeleccionado?.RequiereNumeroEmpleado} />
                 <Radio value="TARJETA" label="Tarjeta" disabled={clienteSeleccionado?.RequiereNumeroEmpleado} />
-                <Radio value="EFECTIVO/TARJETA" label="Efectivo/Tarjeta" disabled={clienteSeleccionado?.RequiereNumeroEmpleado} />
+                <Radio
+                  value="EFECTIVO/TARJETA"
+                  label="Efectivo/Tarjeta"
+                  disabled={clienteSeleccionado?.RequiereNumeroEmpleado}
+                />
                 <Radio value="CREDITO" label="Crédito" />
               </Group>
             </Radio.Group>
@@ -1839,7 +2194,12 @@ export function NuevaVenta() {
                             </Text>
                           )}
                         </td>
-                        <td>$ {detalle.PrecioModificado ? (detalle.SubTotal.toFixed(2)) : (((detalle.PrecioVenta * detalle.Cantidad) * (detalle.DescuentoP / 100)).toFixed(2))}</td>
+                        <td>
+                          ${" "}
+                          {detalle.PrecioModificado
+                            ? detalle.SubTotal.toFixed(2)
+                            : (detalle.PrecioVenta * detalle.Cantidad * (detalle.DescuentoP / 100)).toFixed(2)}
+                        </td>
                         <td>$ {detalle.SubTotal.toFixed(2)}</td>
                         <td>
                           <Group spacing={5} noWrap>
@@ -1925,6 +2285,91 @@ export function NuevaVenta() {
           )}
         </Paper>
       </Flex>
+
+      {/* Modal para seleccionar tipo de impresión */}
+      <Modal
+        opened={modalImpresionAbierto}
+        onClose={() => setModalImpresionAbierto(false)}
+        title="Opciones de impresión"
+        centered
+        size="md"
+      >
+        <Stack spacing="lg" p="md">
+          <Text size="sm" color="dimmed">
+            Seleccione el formato de impresión para esta venta:
+          </Text>
+
+          <SegmentedControl
+            value={venta.tipoImpresion}
+            onChange={(value: "ticket" | "documento") => setVenta({ ...venta, tipoImpresion: value })}
+            data={[
+              {
+                value: "ticket",
+                label: (
+                  <Group spacing="xs">
+                    <IconTicket size={16} />
+                    <Text>Ticket</Text>
+                  </Group>
+                ),
+              },
+              {
+                value: "documento",
+                label: (
+                  <Group spacing="xs">
+                    <IconFile size={16} />
+                    <Text>Documento</Text>
+                  </Group>
+                ),
+              },
+            ]}
+          />
+
+          <Box my="md">
+            {venta.tipoImpresion === "ticket" ? (
+              <Paper p="md" withBorder>
+                <Group position="center" mb="sm">
+                  <IconTicket size={24} color="#228be6" />
+                  <Title order={5}>Vista previa de Ticket</Title>
+                </Group>
+                <Text size="sm" mb="xs">
+                  Formato compacto ideal para impresoras térmicas:
+                </Text>
+                <List size="sm" spacing="xs" withPadding>
+                  <List.Item>Ancho reducido (80mm)</List.Item>
+                  <List.Item>Información condensada</List.Item>
+                  <List.Item>Ideal para entregas rápidas al cliente</List.Item>
+                  <List.Item>Ahorro de papel</List.Item>
+                </List>
+              </Paper>
+            ) : (
+              <Paper p="md" withBorder>
+                <Group position="center" mb="sm">
+                  <IconFile size={24} color="#228be6" />
+                  <Title order={5}>Vista previa de Documento</Title>
+                </Group>
+                <Text size="sm" mb="xs">
+                  Formato completo tamaño carta:
+                </Text>
+                <List size="sm" spacing="xs" withPadding>
+                  <List.Item>Información detallada</List.Item>
+                  <List.Item>Formato profesional</List.Item>
+                  <List.Item>Ideal para archivo y contabilidad</List.Item>
+                  <List.Item>Incluye todos los detalles de la venta</List.Item>
+                </List>
+              </Paper>
+            )}
+          </Box>
+
+          <Group position="right" mt="md">
+            <Button variant="outline" onClick={() => setModalImpresionAbierto(false)}>
+              Cancelar
+            </Button>
+            <Button color="blue" onClick={finalizarVenta}>
+              Continuar
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Paper>
   )
 }
