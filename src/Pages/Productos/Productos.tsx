@@ -18,6 +18,7 @@ import {
   Stack,
   Alert,
   ScrollArea,
+  Tabs,
 } from "@mantine/core"
 import {
   IconPlus,
@@ -34,6 +35,7 @@ import {
   IconX,
   IconInfoCircle,
   IconCheck,
+  IconBarcode,
 } from "@tabler/icons-react"
 import DataTable from "../../components/DataTable"
 import { useEffect, useState, useMemo } from "react"
@@ -43,6 +45,7 @@ import { obtenerProductos, eliminarProducto, importarProductos } from "../servic
 import { ConfiguracionService } from "../services/ConfiguracionService"
 import * as XLSX from "xlsx"
 import { supabase } from "../../supabase/client"
+import { BarcodeGenerator } from "../../components/BarcodeGenerator"
 
 // Componente para renderizar montos
 const MontoRenderer = (props: any) => {
@@ -98,6 +101,7 @@ export function Productos() {
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [duplicatesList, setDuplicatesList] = useState<DuplicateProduct[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [activeTab, setActiveTab] = useState<string | null>("productos")
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -262,7 +266,7 @@ export function Productos() {
     {
       headerName: "Acciones",
       field: "actions",
-      minWidth: 150,
+      minWidth: 180,
       cellRenderer: (params: any) => (
         <Group spacing={4} position="center">
           <ActionIcon
@@ -281,6 +285,17 @@ export function Productos() {
           </ActionIcon>
           <ActionIcon color="red" onClick={() => handleDeleteProducto(params.data)} title="Eliminar">
             <IconTrash size={16} />
+          </ActionIcon>
+          <ActionIcon
+            color="indigo"
+            onClick={() => {
+              setActiveTab("codigos")
+              // Pre-seleccionar este producto en el generador de códigos
+              // Esta funcionalidad requeriría implementar un estado compartido o un contexto
+            }}
+            title="Generar código de barras"
+          >
+            <IconBarcode size={16} />
           </ActionIcon>
         </Group>
       ),
@@ -510,238 +525,255 @@ export function Productos() {
 
       {location.pathname === "/productos" ? (
         <>
-          <Flex justify="space-between" align="center" mb="md" wrap="wrap" gap="sm">
-            <Group spacing="xs">
-              <IconPackage size={24} color="#228be6" />
-              <Title order={2} sx={{ fontSize: "calc(1.2rem + 0.5vw)" }}>
-                Gestión de Productos
-              </Title>
-              <Badge color="blue" size="lg" variant="light">
-                {filteredData.length} registros
-              </Badge>
-              <Badge color="orange" size="lg" variant="outline">
-                Stock mínimo: {stockMinimo}
-              </Badge>
-            </Group>
-            <Group>
-              <TextInput
-                placeholder="Buscar producto..."
-                icon={<IconSearch size={16} />}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.currentTarget.value)}
-                sx={{ minWidth: "200px" }}
-                radius="md"
-              />
+          <Tabs value={activeTab} onTabChange={setActiveTab} mb="md">
+            <Tabs.List>
+              <Tabs.Tab value="productos" icon={<IconPackage size={16} />}>
+                Productos
+              </Tabs.Tab>
+              <Tabs.Tab value="codigos" icon={<IconBarcode size={16} />}>
+                Códigos de Barras
+              </Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
 
-              <Menu shadow="md" width={200} position="bottom-end">
-                <Menu.Target>
-                  <Button variant="filled" color="blue" leftIcon={<IconPlus size={16} />} radius="md">
-                    Nuevo
-                  </Button>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  <Menu.Item icon={<IconPlus size={14} />} onClick={() => navigate("agregar")}>
-                    Producto Individual
-                  </Menu.Item>
-                  <Menu.Item icon={<IconUpload size={14} />} onClick={handleImportProducts}>
-                    Importar Masivo
-                  </Menu.Item>
-                  <Menu.Item icon={<IconFileDownload size={14} />} onClick={generateAndDownloadTemplate}>
-                    Descargar Plantilla
-                  </Menu.Item>
-                </Menu.Dropdown>
-              </Menu>
-            </Group>
-          </Flex>
+          {activeTab === "productos" ? (
+            <>
+              <Flex justify="space-between" align="center" mb="md" wrap="wrap" gap="sm">
+                <Group spacing="xs">
+                  <IconPackage size={24} color="#228be6" />
+                  <Title order={2} sx={{ fontSize: "calc(1.2rem + 0.5vw)" }}>
+                    Gestión de Productos
+                  </Title>
+                  <Badge color="blue" size="lg" variant="light">
+                    {filteredData.length} registros
+                  </Badge>
+                  <Badge color="orange" size="lg" variant="outline">
+                    Stock mínimo: {stockMinimo}
+                  </Badge>
+                </Group>
+                <Group>
+                  <TextInput
+                    placeholder="Buscar producto..."
+                    icon={<IconSearch size={16} />}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.currentTarget.value)}
+                    sx={{ minWidth: "200px" }}
+                    radius="md"
+                  />
 
-          {importResult && (
-            <Alert
-              icon={<IconInfoCircle size={18} />}
-              title="Resultado de importación"
-              color="blue"
-              mb="md"
-              onClose={() => setImportResult(null)}
-              withCloseButton
-            >
-              <Text size="sm">
-                <strong>Nuevos:</strong> {importResult.inserted} |<strong> Actualizados:</strong> {importResult.updated}{" "}
-                |<strong> Stock +:</strong> {importResult.stockAdded} |<strong> Omitidos:</strong>{" "}
-                {importResult.skipped}
-              </Text>
-            </Alert>
-          )}
+                  <Menu shadow="md" width={200} position="bottom-end">
+                    <Menu.Target>
+                      <Button variant="filled" color="blue" leftIcon={<IconPlus size={16} />} radius="md">
+                        Nuevo
+                      </Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item icon={<IconPlus size={14} />} onClick={() => navigate("agregar")}>
+                        Producto Individual
+                      </Menu.Item>
+                      <Menu.Item icon={<IconUpload size={14} />} onClick={handleImportProducts}>
+                        Importar Masivo
+                      </Menu.Item>
+                      <Menu.Item icon={<IconFileDownload size={14} />} onClick={generateAndDownloadTemplate}>
+                        Descargar Plantilla
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                </Group>
+              </Flex>
 
-          <Group grow mb="md">
-            <Paper p="md" radius="md" withBorder>
-              <Group position="apart">
-                <div>
-                  <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
-                    Total Productos
-                  </Text>
-                  <Text weight={700} size="xl">
-                    {productos.length}
-                  </Text>
-                </div>
-                <IconPackage size={32} color="#228be6" />
-              </Group>
-            </Paper>
-            <Paper p="md" radius="md" withBorder>
-              <Group position="apart">
-                <div>
-                  <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
-                    Bajo Stock (≤{stockMinimo})
-                  </Text>
-                  <Text weight={700} size="xl" color="red">
-                    {productos.filter((p) => Number(p?.Stock || 0) <= stockMinimo).length}
-                  </Text>
-                </div>
-                <IconAlertTriangle size={32} color="#fa5252" />
-              </Group>
-            </Paper>
-          </Group>
-
-          <Box sx={{ height: "calc(100% - 160px)" }}>
-            <DataTable
-              rowData={filteredData}
-              columnDefs={columnDefs}
-              onGridReady={onGridReady}
-              rowsPerPage={10}
-              pagination={true}
-            />
-          </Box>
-
-          {/* Modal para manejar duplicados */}
-          <Modal
-            opened={importModalOpen}
-            onClose={() => setImportModalOpen(false)}
-            title={
-              <Text size="xl" fw={600}>
-                Manejar productos duplicados
-              </Text>
-            }
-            size="xl"
-            centered
-          >
-            <Stack spacing="lg">
-              <Text>
-                Se encontraron <strong>{duplicatesList.length} productos</strong> que ya existen en el sistema.
-                Seleccione cómo desea manejar estos duplicados:
-              </Text>
-
-              <Box>
-                <Checkbox
-                  label={
-                    <Text fw={500}>
-                      <IconRefresh size={16} style={{ marginRight: 8 }} />
-                      Actualizar toda la información del producto
-                    </Text>
-                  }
-                  checked={importOptions.updateExisting}
-                  onChange={(e) =>
-                    setImportOptions({
-                      ...importOptions,
-                      updateExisting: e.currentTarget.checked,
-                      sumStock: e.currentTarget.checked ? false : importOptions.sumStock,
-                      skipDuplicates: false,
-                    })
-                  }
-                  mb="sm"
-                  size="md"
-                />
-                <Text color="dimmed" size="sm" ml={28} mb="md">
-                  Reemplazará todos los campos (descripción, precios, stock) con los valores del archivo
-                </Text>
-
-                <Checkbox
-                  label={
-                    <Text fw={500}>
-                      <IconArrowsJoin2 size={16} style={{ marginRight: 8 }} />
-                      Sumar solo al stock existente
-                    </Text>
-                  }
-                  checked={importOptions.sumStock}
-                  onChange={(e) =>
-                    setImportOptions({
-                      ...importOptions,
-                      sumStock: e.currentTarget.checked,
-                      updateExisting: e.currentTarget.checked ? false : importOptions.updateExisting,
-                      skipDuplicates: false,
-                    })
-                  }
-                  mb="sm"
-                  size="md"
-                />
-                <Text color="dimmed" size="sm" ml={28} mb="md">
-                  Mantendrá la información actual y solo sumará las cantidades de stock
-                </Text>
-
-                <Checkbox
-                  label={
-                    <Text fw={500}>
-                      <IconX size={16} style={{ marginRight: 8 }} />
-                      Omitir productos duplicados
-                    </Text>
-                  }
-                  checked={importOptions.skipDuplicates}
-                  onChange={(e) =>
-                    setImportOptions({
-                      ...importOptions,
-                      skipDuplicates: e.currentTarget.checked,
-                      updateExisting: false,
-                      sumStock: false,
-                    })
-                  }
-                  size="md"
-                />
-                <Text color="dimmed" size="sm" ml={28}>
-                  No realizará cambios en los productos existentes
-                </Text>
-              </Box>
-
-              <Box>
-                <Text fw={500} mb="sm">
-                  Productos duplicados encontrados:
-                </Text>
-                <ScrollArea style={{ maxHeight: 300 }}>
-                  {duplicatesList.map((item, index) => (
-                    <Alert key={index} mb="xs" color="yellow" variant="outline" icon={<IconInfoCircle size={18} />}>
-                      <Text size="sm" fw={600}>
-                        {item.Codigo} - {item.Descripcion}
-                      </Text>
-                      <Group spacing="xl" mt="xs">
-                        <Box>
-                          <Text size="xs">
-                            <strong>Stock:</strong> {item.existingStock} → {item.Stock} (
-                            {item.existingStock + item.Stock})
-                          </Text>
-                          <Text size="xs">
-                            <strong>P. Compra:</strong> ${item.existingPrecioCompra} → ${item.PrecioCompra}
-                          </Text>
-                          <Text size="xs">
-                            <strong>P. Venta:</strong> ${item.existingPrecioVenta} → ${item.PrecioVenta}
-                          </Text>
-                        </Box>
-                      </Group>
-                    </Alert>
-                  ))}
-                </ScrollArea>
-              </Box>
-
-              <Group position="right" mt="xl">
-                <Button variant="default" onClick={() => setImportModalOpen(false)} leftIcon={<IconX size={18} />}>
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleConfirmImport}
-                  loading={importing}
-                  leftIcon={<IconCheck size={18} />}
-                  color="green"
+              {importResult && (
+                <Alert
+                  icon={<IconInfoCircle size={18} />}
+                  title="Resultado de importación"
+                  color="blue"
+                  mb="md"
+                  onClose={() => setImportResult(null)}
+                  withCloseButton
                 >
-                  Confirmar Importación
-                </Button>
+                  <Text size="sm">
+                    <strong>Nuevos:</strong> {importResult.inserted} |<strong> Actualizados:</strong>{" "}
+                    {importResult.updated} |<strong> Stock +:</strong> {importResult.stockAdded} |
+                    <strong> Omitidos:</strong> {importResult.skipped}
+                  </Text>
+                </Alert>
+              )}
+
+              <Group grow mb="md">
+                <Paper p="md" radius="md" withBorder>
+                  <Group position="apart">
+                    <div>
+                      <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
+                        Total Productos
+                      </Text>
+                      <Text weight={700} size="xl">
+                        {productos.length}
+                      </Text>
+                    </div>
+                    <IconPackage size={32} color="#228be6" />
+                  </Group>
+                </Paper>
+                <Paper p="md" radius="md" withBorder>
+                  <Group position="apart">
+                    <div>
+                      <Text size="xs" color="dimmed" transform="uppercase" weight={700}>
+                        Bajo Stock (≤{stockMinimo})
+                      </Text>
+                      <Text weight={700} size="xl" color="red">
+                        {productos.filter((p) => Number(p?.Stock || 0) <= stockMinimo).length}
+                      </Text>
+                    </div>
+                    <IconAlertTriangle size={32} color="#fa5252" />
+                  </Group>
+                </Paper>
               </Group>
-            </Stack>
-          </Modal>
+
+              <Box sx={{ height: "calc(100% - 160px)" }}>
+                <DataTable
+                  rowData={filteredData}
+                  columnDefs={columnDefs}
+                  onGridReady={onGridReady}
+                  rowsPerPage={10}
+                  pagination={true}
+                />
+              </Box>
+
+              {/* Modal para manejar duplicados */}
+              <Modal
+                opened={importModalOpen}
+                onClose={() => setImportModalOpen(false)}
+                title={
+                  <Text size="xl" fw={600}>
+                    Manejar productos duplicados
+                  </Text>
+                }
+                size="xl"
+                centered
+              >
+                <Stack spacing="lg">
+                  <Text>
+                    Se encontraron <strong>{duplicatesList.length} productos</strong> que ya existen en el sistema.
+                    Seleccione cómo desea manejar estos duplicados:
+                  </Text>
+
+                  <Box>
+                    <Checkbox
+                      label={
+                        <Text fw={500}>
+                          <IconRefresh size={16} style={{ marginRight: 8 }} />
+                          Actualizar toda la información del producto
+                        </Text>
+                      }
+                      checked={importOptions.updateExisting}
+                      onChange={(e) =>
+                        setImportOptions({
+                          ...importOptions,
+                          updateExisting: e.currentTarget.checked,
+                          sumStock: e.currentTarget.checked ? false : importOptions.sumStock,
+                          skipDuplicates: false,
+                        })
+                      }
+                      mb="sm"
+                      size="md"
+                    />
+                    <Text color="dimmed" size="sm" ml={28} mb="md">
+                      Reemplazará todos los campos (descripción, precios, stock) con los valores del archivo
+                    </Text>
+
+                    <Checkbox
+                      label={
+                        <Text fw={500}>
+                          <IconArrowsJoin2 size={16} style={{ marginRight: 8 }} />
+                          Sumar solo al stock existente
+                        </Text>
+                      }
+                      checked={importOptions.sumStock}
+                      onChange={(e) =>
+                        setImportOptions({
+                          ...importOptions,
+                          sumStock: e.currentTarget.checked,
+                          updateExisting: e.currentTarget.checked ? false : importOptions.updateExisting,
+                          skipDuplicates: false,
+                        })
+                      }
+                      mb="sm"
+                      size="md"
+                    />
+                    <Text color="dimmed" size="sm" ml={28} mb="md">
+                      Mantendrá la información actual y solo sumará las cantidades de stock
+                    </Text>
+
+                    <Checkbox
+                      label={
+                        <Text fw={500}>
+                          <IconX size={16} style={{ marginRight: 8 }} />
+                          Omitir productos duplicados
+                        </Text>
+                      }
+                      checked={importOptions.skipDuplicates}
+                      onChange={(e) =>
+                        setImportOptions({
+                          ...importOptions,
+                          skipDuplicates: e.currentTarget.checked,
+                          updateExisting: false,
+                          sumStock: false,
+                        })
+                      }
+                      size="md"
+                    />
+                    <Text color="dimmed" size="sm" ml={28}>
+                      No realizará cambios en los productos existentes
+                    </Text>
+                  </Box>
+
+                  <Box>
+                    <Text fw={500} mb="sm">
+                      Productos duplicados encontrados:
+                    </Text>
+                    <ScrollArea style={{ maxHeight: 300 }}>
+                      {duplicatesList.map((item, index) => (
+                        <Alert key={index} mb="xs" color="yellow" variant="outline" icon={<IconInfoCircle size={18} />}>
+                          <Text size="sm" fw={600}>
+                            {item.Codigo} - {item.Descripcion}
+                          </Text>
+                          <Group spacing="xl" mt="xs">
+                            <Box>
+                              <Text size="xs">
+                                <strong>Stock:</strong> {item.existingStock} → {item.Stock} (
+                                {item.existingStock + item.Stock})
+                              </Text>
+                              <Text size="xs">
+                                <strong>P. Compra:</strong> ${item.existingPrecioCompra} → ${item.PrecioCompra}
+                              </Text>
+                              <Text size="xs">
+                                <strong>P. Venta:</strong> ${item.existingPrecioVenta} → ${item.PrecioVenta}
+                              </Text>
+                            </Box>
+                          </Group>
+                        </Alert>
+                      ))}
+                    </ScrollArea>
+                  </Box>
+
+                  <Group position="right" mt="xl">
+                    <Button variant="default" onClick={() => setImportModalOpen(false)} leftIcon={<IconX size={18} />}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleConfirmImport}
+                      loading={importing}
+                      leftIcon={<IconCheck size={18} />}
+                      color="green"
+                    >
+                      Confirmar Importación
+                    </Button>
+                  </Group>
+                </Stack>
+              </Modal>
+            </>
+          ) : (
+            <BarcodeGenerator />
+          )}
         </>
       ) : (
         <Outlet />
